@@ -7,7 +7,10 @@ import {
     layDanhSachTaiKhoan,
     taoTaiKhoanAdmin,
     capNhatTaiKhoanAdmin,
-    xoaTaiKhoanAdmin
+    capNhatCapBacTaiKhoanAdmin,
+    xoaTaiKhoanAdmin,
+    nhapTaiKhoanTuExcel,
+    taiFileMauExcel
 } from "../../servives/admin/taiKhoan.service.js";
 
 export default function QuanLyTaiKhoan() {
@@ -18,6 +21,10 @@ export default function QuanLyTaiKhoan() {
     const [dangTai, setDangTai] = useState(true);
     const [loi, setLoi] = useState("");
     const [thongBao, setThongBao] = useState("");
+    const [fileImport, setFileImport] = useState(null);
+    const [dangImportExcel, setDangImportExcel] = useState(false);
+    const [ketQuaImport, setKetQuaImport] = useState(null);
+    const [loiImport, setLoiImport] = useState("");
 
     // State cho Modal thêm/sửa
     const [modalHienThi, setModalHienThi] = useState(false);
@@ -57,11 +64,24 @@ export default function QuanLyTaiKhoan() {
         setModalHienThi(true);
     }
 
+    function hienThiModalCapBac(tk) {
+        setModalCheDo("CAP_BAC");
+        setTaiKhoanDangChon(tk);
+        setLoi("");
+        setModalHienThi(true);
+    }
+
     async function handleSave(data) {
         if (modalCheDo === "THEM") {
             const res = await taoTaiKhoanAdmin(data);
             if (res.success) {
                 hienThongBao("Đã thêm tài khoản mới thành công!");
+                TaiDanhSach();
+            }
+        } else if (modalCheDo === "CAP_BAC") {
+            const res = await capNhatCapBacTaiKhoanAdmin(taiKhoanDangChon.id, data.huong);
+            if (res.success) {
+                hienThongBao("Đã cập nhật vai trò tài khoản!");
                 TaiDanhSach();
             }
         } else {
@@ -103,40 +123,82 @@ export default function QuanLyTaiKhoan() {
         return d.toLocaleDateString("vi-VN") + " " + d.toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' });
     }
 
+
+
+    async function xuLyNhapExcel(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setDangImportExcel(true);
+        setLoiImport("");
+        setKetQuaImport(null);
+        setFileImport(file);
+
+        try {
+            const res = await nhapTaiKhoanTuExcel(file);
+            if (res.success) {
+                setKetQuaImport(res.data);
+                hienThongBao("Đã nhập tài khoản bằng Excel thành công!");
+                TaiDanhSach();
+            } else {
+                throw new Error(res.message || "Không thể nhập tài khoản từ Excel");
+            }
+        } catch (err) {
+            setLoiImport(err.message || "Không thể nhập tài khoản từ Excel");
+        } finally {
+            setDangImportExcel(false);
+            e.target.value = "";
+        }
+    }
+
+    async function xuLyTaiFileMauExcel() {
+        try {
+            await taiFileMauExcel();
+        } catch (err) {
+            setLoiImport(err.message || "Không thể tải file mẫu Excel");
+        }
+    }
+
     return (
         <div className="quan-ly-tai-khoan-container">
-            <div className="vach-day-chuyen" />
-            
-            <nav className="thanh-dieu-huong">
-                <div className="logo-section" onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>
-                    <div className="logo">QLNS<span>•</span>DÂY CHUYỀN</div>
-                    <span className="sub-logo-text">ADMIN CONTROL PANEL</span>
-                </div>
-                <div className="khu-nguoi-dung">
-                    <span>{nguoiDung.ten_dang_nhap}</span>
-                    <RoleBadge role={nguoiDung.role} />
-                    <button className="nut-quay-lai" onClick={() => navigate("/dashboard")}>
-                        Bảng điều khiển
-                    </button>
-                    <button className="nut-dang-xuat" onClick={() => { dangXuat(); navigate("/dang-nhap"); }}>
-                        Đăng xuất
-                    </button>
-                </div>
-            </nav>
-
             <main className="noi-dung-admin">
                 <div className="admin-header-bar">
                     <div className="tieu-de-khoi">
                         <h2>Quản lý tài khoản hệ thống</h2>
                         <p>Danh sách tài khoản đăng nhập và phân quyền nhân viên dây chuyền</p>
                     </div>
-                    <button className="nut-chinh nut-them-moi" onClick={hienThiModalThem}>
-                        + Thêm tài khoản mới
-                    </button>
+                    <div className="nhom-nut-admin">
+                        <label className="nut-import-excel">
+                            <input type="file" accept=".xlsx,.xls" onChange={xuLyNhapExcel} />
+                            {dangImportExcel ? "Đang nhập..." : "Nhập bằng Excel"}
+                        </label>
+                        <button className="nut-chinh nut-them-moi" onClick={hienThiModalThem}>
+                            + Thêm tài khoản mới
+                        </button>
+                    </div>
                 </div>
 
                 {thongBao && <div className="thong-bao-thanh-cong">{thongBao}</div>}
                 {loi && <div className="thong-bao-loi">{loi}</div>}
+                {loiImport && <div className="thong-bao-loi">{loiImport}</div>}
+
+                <div className="ghi-chu-import-excel">
+                    <span>Nhập tài khoản bằng Excel hoặc </span>
+                    <button
+                        type="button"
+                        className="nut-hanh-dong nut-sua"
+                        onClick={xuLyTaiFileMauExcel}
+                        style={{ padding: "6px 10px", marginLeft: "6px" }}
+                    >
+                        Tải file mẫu Excel
+                    </button>
+                </div>
+
+                {ketQuaImport && (
+                    <div className="thong-bao-thanh-cong">
+                        Đã nhập {ketQuaImport.tong_so_dong} dòng. Thành công {ketQuaImport.so_thanh_cong}, lỗi {ketQuaImport.so_loi}.
+                    </div>
+                )}
 
                 <div className="bang-du-lieu-wrapper">
                     {dangTai ? (
@@ -147,6 +209,9 @@ export default function QuanLyTaiKhoan() {
                                 <tr>
                                     <th>ID</th>
                                     <th>Tên đăng nhập</th>
+                                    <th>Họ và tên</th>
+                                    <th>Giới tính</th>
+                                    <th>Số điện thoại</th>
                                     <th>Email</th>
                                     <th>Vai trò</th>
                                     <th>Trạng thái</th>
@@ -157,21 +222,29 @@ export default function QuanLyTaiKhoan() {
                             <tbody>
                                 {danhSach.length === 0 ? (
                                     <tr>
-                                        <td colSpan="7" style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}>
+                                        <td colSpan="10" style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}>
                                             Chưa có tài khoản nào trong hệ thống
                                         </td>
                                     </tr>
                                 ) : (
                                     danhSach.map((tk) => (
-                                        <tr key={tk.id} className={Number(tk.id) === Number(nguoiDung.id) ? "dong-hien-tai" : ""}>
+                                        <tr
+                                            key={tk.id}
+                                            className={`${Number(tk.id) === Number(nguoiDung.id) ? "dong-hien-tai" : ""} ${tk.role === "NHAN_VIEN" ? "dong-nhan-vien" : tk.role === "LEADER_LINE" ? "dong-leader-line" : tk.role === "LEADER_KHU_VUC" ? "dong-leader-khu-vuc" : "dong-admin"}`}
+                                        >
                                             <td>{tk.id}</td>
                                             <td>
                                                 <strong>{tk.ten_dang_nhap}</strong>
                                                 {Number(tk.id) === Number(nguoiDung.id) && <span className="nhan-ban-than"> (Bạn)</span>}
                                             </td>
+                                            <td>{tk.ho_ten || <span className="text-unspecified">Chưa cập nhật</span>}</td>
+                                            <td>{tk.gioi_tinh || "-"}</td>
+                                            <td>{tk.so_dien_thoai || "-"}</td>
                                             <td>{tk.email || <span className="text-unspecified">Chưa cập nhật</span>}</td>
                                             <td>
-                                                <RoleBadge role={tk.role} />
+                                                <div className="cell-role-stack">
+                                                    <RoleBadge role={tk.role} />
+                                                </div>
                                             </td>
                                             <td>
                                                 {tk.trang_thai === 1 ? (
@@ -186,9 +259,17 @@ export default function QuanLyTaiKhoan() {
                                                     <button 
                                                         className="nut-hanh-dong nut-sua" 
                                                         onClick={() => hienThiModalSua(tk)}
-                                                        title="Sửa thông tin"
+                                                        title="Sửa thông tin tài khoản"
                                                     >
                                                         Sửa
+                                                    </button>
+                                                    <button 
+                                                        className="nut-hanh-dong nut-vai-tro" 
+                                                        onClick={() => hienThiModalCapBac(tk)}
+                                                        title="Thăng cấp / hạ cấp vai trò"
+                                                        style={{ backgroundColor: "#ef9a9a", color: "#b71c1c", marginRight: "4px" }}
+                                                    >
+                                                        Vai trò
                                                     </button>
                                                     <button 
                                                         className="nut-hanh-dong nut-xoa" 

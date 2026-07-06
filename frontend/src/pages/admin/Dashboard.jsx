@@ -10,6 +10,12 @@ const CAC_KHU_VUC_CHUC_NANG = [
         duongDan: "/admin/tai-khoan"
     },
     {
+        tieuDe: "Nhập nhân viên bằng Excel",
+        moTa: "Tải file Excel để tạo hàng loạt tài khoản và hồ sơ nhân viên.",
+        choPhep: ["ADMIN"],
+        duongDan: "/admin/nhan-vien/nhap-excel"
+    },
+    {
         tieuDe: "Báo cáo khu vực",
         moTa: "Xem tình hình nhân sự của toàn bộ khu vực phụ trách.",
         choPhep: ["ADMIN", "LEADER_KHU_VUC"]
@@ -20,9 +26,9 @@ const CAC_KHU_VUC_CHUC_NANG = [
         choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE"]
     },
     {
-        tieuDe: "Lịch làm việc của tôi",
-        moTa: "Xem ca làm, đăng ký tăng ca, xem thông báo cá nhân.",
-        choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "NHAN_VIEN"]
+        tieuDe: "Đăng ký tăng ca & thông báo",
+        moTa: "đăng ký tăng ca cho nhân viên",
+        choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE"]
     }
 ];
 
@@ -37,19 +43,6 @@ export default function Dashboard() {
 
     return (
         <div>
-            <div className="vach-day-chuyen" />
-
-            <nav className="thanh-dieu-huong">
-                <div className="logo">QLNS<span>•</span>DÂY CHUYỀN</div>
-                <div className="khu-nguoi-dung">
-                    <span>{nguoiDung.ten_dang_nhap}</span>
-                    <RoleBadge role={nguoiDung.role} />
-                    <button className="nut-dang-xuat" onClick={xuLyDangXuat}>
-                        Đăng xuất
-                    </button>
-                </div>
-            </nav>
-
             <main className="noi-dung-chinh">
                 <div className="the-thong-tin">
                     <h3>Thông tin tài khoản</h3>

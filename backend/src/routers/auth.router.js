@@ -13,4 +13,5 @@ router.post("/register", xacThucToken, phanQuyen("ADMIN"), authController.regist
 // Chỉ cần đăng nhập (bất kỳ role nào) là xem được thông tin của chính mình
 router.get("/me", xacThucToken, authController.layThongTinCaNhan);
 
+
 export default router;

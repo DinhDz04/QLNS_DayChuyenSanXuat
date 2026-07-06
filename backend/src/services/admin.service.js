@@ -1,8 +1,9 @@
-import bcrypt from "bcrypt";
+
 import xlsx from "xlsx";
 import pool from "../config/db.js";
 import * as taiKhoanModel from "../models/taiKhoan.model.js";
 import { DANH_SACH_ROLE } from "./auth.service.js";
+import bcrypt from "bcrypt";
 
 /**
  * Lấy tất cả tài khoản
@@ -12,9 +13,81 @@ export async function layDanhSachTaiKhoan() {
 }
 
 /**
+ * Tạo tài khoản mới kèm theo thông tin nhân viên
+ */
+export async function taoTaiKhoan({ ten_dang_nhap, mat_khau, email, role, ho_ten, so_dien_thoai, gioi_tinh }) {
+    if (!ten_dang_nhap || !mat_khau) {
+        const loi = new Error("Thiếu tên đăng nhập hoặc mật khẩu");
+        loi.statusCode = 400;
+        throw loi;
+    }
+
+    if (role && !DANH_SACH_ROLE.includes(role)) {
+        const loi = new Error("Vai trò không hợp lệ");
+        loi.statusCode = 400;
+        throw loi;
+    }
+
+    const daTonTai = await taiKhoanModel.timTheoTenDangNhap(ten_dang_nhap);
+    if (daTonTai) {
+        const loi = new Error("Tên đăng nhập đã tồn tại");
+        loi.statusCode = 409;
+        throw loi;
+    }
+
+    const soVongMaHoa = 10;
+    const mat_khau_da_ma_hoa = await bcrypt.hash(mat_khau, soVongMaHoa);
+
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Tạo tai_khoan
+        const [kqTaiKhoan] = await connection.query(
+            "INSERT INTO tai_khoan (ten_dang_nhap, mat_khau, email, role, trang_thai) VALUES (?, ?, ?, ?, 1)",
+            [ten_dang_nhap, mat_khau_da_ma_hoa, email || null, role || "NHAN_VIEN"]
+        );
+        const taiKhoanId = kqTaiKhoan.insertId;
+
+        // 2. Tạo nhan_vien
+        const [rows] = await connection.query(
+            `SELECT ma_nhan_vien FROM nhan_vien WHERE ma_nhan_vien LIKE 'DP%' ORDER BY id DESC`
+        );
+        let soLonNhat = 0;
+        for (const row of rows) {
+            const soTrongMa = parseInt((row.ma_nhan_vien || "").replace("DP", ""), 10);
+            if (!isNaN(soTrongMa) && soTrongMa > soLonNhat) soLonNhat = soTrongMa;
+        }
+        const maNhanVien = `DP${soLonNhat + 1}`;
+
+        await connection.query(
+            `INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, gioi_tinh, so_dien_thoai, ngay_vao_lam, tai_khoan_id, chuc_vu, trang_thai) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'DANG_LAM')`,
+            [
+                maNhanVien,
+                ho_ten || ten_dang_nhap,
+                gioi_tinh || "Khac",
+                so_dien_thoai || null,
+                new Date(),
+                taiKhoanId,
+                role || "NHAN_VIEN"
+            ]
+        );
+
+        await connection.commit();
+        return { id: taiKhoanId, ten_dang_nhap, email, role: role || "NHAN_VIEN" };
+    } catch (err) {
+        await connection.rollback();
+        throw err;
+    } finally {
+        connection.release();
+    }
+}
+
+/**
  * Cập nhật tài khoản
  */
-export async function capNhatTaiKhoan(id, { ten_dang_nhap, mat_khau, email, role, trang_thai }) {
+export async function capNhatTaiKhoan(id, { ten_dang_nhap, mat_khau, email, role, trang_thai, ho_ten, so_dien_thoai, gioi_tinh }) {
     if (!ten_dang_nhap) {
         const loi = new Error("Tên đăng nhập không được để trống");
         loi.statusCode = 400;
@@ -27,7 +100,6 @@ export async function capNhatTaiKhoan(id, { ten_dang_nhap, mat_khau, email, role
         throw loi;
     }
 
-    // Kiểm tra tài khoản tồn tại
     const taiKhoanHienTai = await taiKhoanModel.timTheoId(id);
     if (!taiKhoanHienTai) {
         const loi = new Error("Không tìm thấy tài khoản");
@@ -35,7 +107,6 @@ export async function capNhatTaiKhoan(id, { ten_dang_nhap, mat_khau, email, role
         throw loi;
     }
 
-    // Kiểm tra trùng tên đăng nhập với tài khoản khác
     if (ten_dang_nhap !== taiKhoanHienTai.ten_dang_nhap) {
         const daTonTai = await taiKhoanModel.timTheoTenDangNhap(ten_dang_nhap);
         if (daTonTai) {
@@ -56,8 +127,15 @@ export async function capNhatTaiKhoan(id, { ten_dang_nhap, mat_khau, email, role
         email,
         role: role || taiKhoanHienTai.role,
         trang_thai: trang_thai !== undefined ? trang_thai : taiKhoanHienTai.trang_thai,
-        mat_khau_da_ma_hoa
+        mat_khau_da_ma_hoa,
+        ho_ten: ho_ten || taiKhoanHienTai.ho_ten,
+        so_dien_thoai: so_dien_thoai || taiKhoanHienTai.so_dien_thoai,
+        gioi_tinh: gioi_tinh || taiKhoanHienTai.gioi_tinh
     });
+
+    if (thanhCong) {
+        await dongBoChucVuNhanVien(id, role || taiKhoanHienTai.role);
+    }
 
     if (!thanhCong) {
         const loi = new Error("Cập nhật thất bại");
@@ -72,6 +150,52 @@ export async function capNhatTaiKhoan(id, { ten_dang_nhap, mat_khau, email, role
         role: role || taiKhoanHienTai.role,
         trang_thai: trang_thai !== undefined ? trang_thai : taiKhoanHienTai.trang_thai
     };
+}
+
+async function dongBoChucVuNhanVien(taiKhoanId, role) {
+    await pool.query(
+        "UPDATE nhan_vien SET chuc_vu = ? WHERE tai_khoan_id = ?",
+        [role, taiKhoanId]
+    );
+}
+
+/**
+ * Thăng cấp / hạ cấp vai trò
+ */
+export async function capNhatCapBacTaiKhoan(id, huong) {
+    const taiKhoan = await taiKhoanModel.timTheoId(id);
+    if (!taiKhoan) {
+        const loi = new Error("Không tìm thấy tài khoản");
+        loi.statusCode = 404;
+        throw loi;
+    }
+
+    const roleHienTai = taiKhoan.role;
+    let roleMoi = roleHienTai;
+
+    if (huong === "THANG_CAP") {
+        if (roleHienTai === "NHAN_VIEN") roleMoi = "LEADER_LINE";
+        else if (roleHienTai === "LEADER_LINE") roleMoi = "LEADER_KHU_VUC";
+        else if (roleHienTai === "LEADER_KHU_VUC") roleMoi = "ADMIN";
+    } else if (huong === "HA_CAP") {
+        if (roleHienTai === "ADMIN") roleMoi = "LEADER_KHU_VUC";
+        else if (roleHienTai === "LEADER_KHU_VUC") roleMoi = "LEADER_LINE";
+        else if (roleHienTai === "LEADER_LINE") roleMoi = "NHAN_VIEN";
+    }
+
+    if (roleMoi === roleHienTai) {
+        const loi = new Error("Không thể thăng/hạ cấp vai trò này thêm nữa");
+        loi.statusCode = 400;
+        throw loi;
+    }
+
+    // Cập nhật role ở bảng tai_khoan
+    await pool.query("UPDATE tai_khoan SET role = ? WHERE id = ?", [roleMoi, id]);
+    
+    // Đồng bộ chức vụ ở bảng nhan_vien
+    await dongBoChucVuNhanVien(id, roleMoi);
+
+    return { id, role: roleMoi };
 }
 
 /**
@@ -192,7 +316,7 @@ function chuanHoaGioiTinh(gt) {
 /**
  * Hàm nhập dữ liệu nhân viên & tài khoản từ tệp Excel
  */
-export async function nhapTuExcel(fileBuffer) {
+export async function nhapTaiKhoanTuExcel(fileBuffer) {
     // 1. Đọc workbook từ buffer
     const workbook = xlsx.read(fileBuffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
@@ -251,6 +375,8 @@ export async function nhapTuExcel(fileBuffer) {
             const ngaySinh = layGiaTriCot(row, ["Ngày sinh", "Ngay sinh", "DOB", "Date of Birth", "ngay_sinh", "birthday"]);
             const email = layGiaTriCot(row, ["Email", "Thư điện tử", "email"]);
             const ngayVaoLamRaw = layGiaTriCot(row, ["Ngày vào làm", "Ngay vao lam", "Ngay vao viec", "Joining Date", "ngay_vao_lam"]);
+            const caLam = layGiaTriCot(row, ["Ca làm", "Ca lam", "Shift", "ca_lam"]);
+            const sodienthoai = String(layGiaTriCot(row, ["so_dien_thoai", "So dien thoai", "sdt", "SĐT", "SDT", "phone", "Phone"]) || "").trim();
 
             let ngayVaoLam = new Date();
             if (ngayVaoLamRaw) {
@@ -266,7 +392,7 @@ export async function nhapTuExcel(fileBuffer) {
 
             try {
                 // Tự tăng mã nhân viên: D4_01, D4_02,... D4_10
-                const maNhanVien = `D4_${String(currentIdx).padStart(2, '0')}`;
+                const maNhanVien = `DP_${String(currentIdx).padStart(2, '0')}`;
                 
                 // Mật khẩu mặc định từ ngày sinh (DDMMYY)
                 const matKhauMacDinh = taoMatKhauTuNgaySinh(ngaySinh);
