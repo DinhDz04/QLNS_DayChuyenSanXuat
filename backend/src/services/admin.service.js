@@ -15,7 +15,7 @@ export async function layDanhSachTaiKhoan() {
 /**
  * Tạo tài khoản mới kèm theo thông tin nhân viên
  */
-export async function taoTaiKhoan({ ten_dang_nhap, mat_khau, email, role, ho_ten, so_dien_thoai, gioi_tinh }) {
+export async function taoTaiKhoan({ ten_dang_nhap, mat_khau, email, role, ho_ten, so_dien_thoai, gioi_tinh, day_chuyen_id }) {
     if (!ten_dang_nhap || !mat_khau) {
         const loi = new Error("Thiếu tên đăng nhập hoặc mật khẩu");
         loi.statusCode = 400;
@@ -61,8 +61,8 @@ export async function taoTaiKhoan({ ten_dang_nhap, mat_khau, email, role, ho_ten
         const maNhanVien = `DP${soLonNhat + 1}`;
 
         await connection.query(
-            `INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, gioi_tinh, so_dien_thoai, ngay_vao_lam, tai_khoan_id, chuc_vu, trang_thai) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'DANG_LAM')`,
+            `INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, gioi_tinh, so_dien_thoai, ngay_vao_lam, tai_khoan_id, chuc_vu, trang_thai, day_chuyen_id) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'DANG_LAM', ?)`,
             [
                 maNhanVien,
                 ho_ten || ten_dang_nhap,
@@ -70,7 +70,8 @@ export async function taoTaiKhoan({ ten_dang_nhap, mat_khau, email, role, ho_ten
                 so_dien_thoai || null,
                 new Date(),
                 taiKhoanId,
-                role || "NHAN_VIEN"
+                role || "NHAN_VIEN",
+                day_chuyen_id || null
             ]
         );
 
@@ -87,7 +88,7 @@ export async function taoTaiKhoan({ ten_dang_nhap, mat_khau, email, role, ho_ten
 /**
  * Cập nhật tài khoản
  */
-export async function capNhatTaiKhoan(id, { ten_dang_nhap, mat_khau, email, role, trang_thai, ho_ten, so_dien_thoai, gioi_tinh }) {
+export async function capNhatTaiKhoan(id, { ten_dang_nhap, mat_khau, email, role, trang_thai, ho_ten, so_dien_thoai, gioi_tinh, day_chuyen_id }) {
     if (!ten_dang_nhap) {
         const loi = new Error("Tên đăng nhập không được để trống");
         loi.statusCode = 400;
@@ -130,7 +131,8 @@ export async function capNhatTaiKhoan(id, { ten_dang_nhap, mat_khau, email, role
         mat_khau_da_ma_hoa,
         ho_ten: ho_ten || taiKhoanHienTai.ho_ten,
         so_dien_thoai: so_dien_thoai || taiKhoanHienTai.so_dien_thoai,
-        gioi_tinh: gioi_tinh || taiKhoanHienTai.gioi_tinh
+        gioi_tinh: gioi_tinh || taiKhoanHienTai.gioi_tinh,
+        day_chuyen_id: day_chuyen_id !== undefined ? day_chuyen_id : taiKhoanHienTai.day_chuyen_id
     });
 
     if (thanhCong) {
@@ -305,12 +307,26 @@ function dinhDangMatKhauTuDate(date) {
 /**
  * Chuẩn hóa giới tính
  */
+/**
+ * Chuẩn hóa giới tính
+ */
 function chuanHoaGioiTinh(gt) {
     if (!gt) return "Khac";
     const str = String(gt).trim().toLowerCase();
     if (str.startsWith("nam")) return "Nam";
     if (str.startsWith("nữ") || str.startsWith("nu")) return "Nu";
     return "Khac";
+}
+
+/**
+ * Chuẩn hóa vai trò từ Excel
+ */
+function chuanHoaVaiTro(vaiTroText) {
+    const text = (vaiTroText || "").toString().trim().toLowerCase();
+    if (text.includes("leader") && text.includes("khu")) return "LEADER_KHU_VUC";
+    if (text.includes("leader")) return "LEADER_LINE";
+    if (text.includes("admin")) return "ADMIN";
+    return "NHAN_VIEN";
 }
 
 /**
@@ -329,17 +345,17 @@ export async function nhapTaiKhoanTuExcel(fileBuffer) {
         throw loi;
     }
 
-    // 2. Tìm mã nhân viên lớn nhất hiện tại để thực hiện tự tăng mã dạng D4_
+    // 2. Tìm mã nhân viên lớn nhất hiện tại để thực hiện tự tăng mã dạng DP
     const [existing] = await pool.query(
-        "SELECT ma_nhan_vien FROM nhan_vien WHERE ma_nhan_vien LIKE 'D4%'"
+        "SELECT ma_nhan_vien FROM nhan_vien WHERE ma_nhan_vien LIKE 'DP%'"
     );
     let maxNum = 0;
     existing.forEach(row => {
         const code = row.ma_nhan_vien;
         let numPart = "";
-        if (code.startsWith("D4_")) {
+        if (code.startsWith("DP_")) {
             numPart = code.substring(3);
-        } else if (code.startsWith("D4")) {
+        } else if (code.startsWith("DP")) {
             numPart = code.substring(2);
         }
         const num = parseInt(numPart, 10);
@@ -349,11 +365,8 @@ export async function nhapTaiKhoanTuExcel(fileBuffer) {
     });
 
     let currentIdx = maxNum + 1;
-    const ketQuaImport = {
-        tongCong: rows.length,
-        thanhCong: 0,
-        loi: []
-    };
+    const loiList = [];
+    let soThanhCong = 0;
 
     // 3. Thực thi transaction để đảm bảo toàn vẹn dữ liệu
     const connection = await pool.getConnection();
@@ -366,7 +379,6 @@ export async function nhapTaiKhoanTuExcel(fileBuffer) {
             
             // Bỏ qua dòng trống
             if (!hoTen || String(hoTen).trim() === "") {
-                ketQuaImport.tongCong--;
                 continue;
             }
 
@@ -375,8 +387,7 @@ export async function nhapTaiKhoanTuExcel(fileBuffer) {
             const ngaySinh = layGiaTriCot(row, ["Ngày sinh", "Ngay sinh", "DOB", "Date of Birth", "ngay_sinh", "birthday"]);
             const email = layGiaTriCot(row, ["Email", "Thư điện tử", "email"]);
             const ngayVaoLamRaw = layGiaTriCot(row, ["Ngày vào làm", "Ngay vao lam", "Ngay vao viec", "Joining Date", "ngay_vao_lam"]);
-            const caLam = layGiaTriCot(row, ["Ca làm", "Ca lam", "Shift", "ca_lam"]);
-            const sodienthoai = String(layGiaTriCot(row, ["so_dien_thoai", "So dien thoai", "sdt", "SĐT", "SDT", "phone", "Phone"]) || "").trim();
+            const vaiTroRaw = layGiaTriCot(row, ["Vai trò", "Vai tro", "Role", "vai_tro", "Vai tro"]);
 
             let ngayVaoLam = new Date();
             if (ngayVaoLamRaw) {
@@ -391,15 +402,18 @@ export async function nhapTaiKhoanTuExcel(fileBuffer) {
             }
 
             try {
-                // Tự tăng mã nhân viên: D4_01, D4_02,... D4_10
-                const maNhanVien = `DP_${String(currentIdx).padStart(2, '0')}`;
+                // Tự tăng mã nhân viên: DP1, DP2,...
+                const maNhanVien = `DP${currentIdx}`;
                 
                 // Mật khẩu mặc định từ ngày sinh (DDMMYY)
                 const matKhauMacDinh = taoMatKhauTuNgaySinh(ngaySinh);
                 const matKhauDaMaHoa = await bcrypt.hash(matKhauMacDinh, 10);
                 
-                // Tên đăng nhập mặc định: viết thường của mã nhân viên (d4_01)
+                // Tên đăng nhập mặc định: viết thường của mã nhân viên (dp1)
                 const tenDangNhap = maNhanVien.toLowerCase();
+
+                // Xác định vai trò từ Excel
+                const role = chuanHoaVaiTro(vaiTroRaw);
 
                 // Kiểm tra tên đăng nhập đã tồn tại trong DB chưa (phòng hờ)
                 const [trungUsername] = await connection.query(
@@ -412,21 +426,21 @@ export async function nhapTaiKhoanTuExcel(fileBuffer) {
 
                 // A. Tạo tài khoản
                 const [kqTaiKhoan] = await connection.query(
-                    "INSERT INTO tai_khoan (ten_dang_nhap, mat_khau, email, role, trang_thai) VALUES (?, ?, ?, 'NHAN_VIEN', 1)",
-                    [tenDangNhap, matKhauDaMaHoa, email || null]
+                    "INSERT INTO tai_khoan (ten_dang_nhap, mat_khau, email, role, trang_thai) VALUES (?, ?, ?, ?, 1)",
+                    [tenDangNhap, matKhauDaMaHoa, email || null, role]
                 );
                 const taiKhoanId = kqTaiKhoan.insertId;
 
                 // B. Tạo nhân viên liên kết
                 await connection.query(
-                    "INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, gioi_tinh, so_dien_thoai, ngay_vao_lam, tai_khoan_id, chuc_vu, trang_thai) VALUES (?, ?, ?, ?, ?, ?, 'NHAN_VIEN', 'DANG_LAM')",
-                    [maNhanVien, hoTen, gioiTinh, soDienThoai ? String(soDienThoai) : null, ngayVaoLam, taiKhoanId]
+                    "INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, gioi_tinh, so_dien_thoai, ngay_vao_lam, tai_khoan_id, chuc_vu, trang_thai) VALUES (?, ?, ?, ?, ?, ?, ?, 'DANG_LAM')",
+                    [maNhanVien, hoTen, gioiTinh, soDienThoai ? String(soDienThoai) : null, ngayVaoLam, taiKhoanId, role]
                 );
 
                 currentIdx++;
-                ketQuaImport.thanhCong++;
+                soThanhCong++;
             } catch (errRow) {
-                ketQuaImport.loi.push({
+                loiList.push({
                     dong: i + 2, // Excel thường bắt đầu từ dòng 2 (bỏ qua header)
                     nhanVien: hoTen,
                     loi: errRow.message
@@ -443,6 +457,15 @@ export async function nhapTaiKhoanTuExcel(fileBuffer) {
         connection.release();
     }
 
-    return ketQuaImport;
+    return {
+        tong_so_dong: soThanhCong + loiList.length,
+        so_thanh_cong: soThanhCong,
+        so_loi: loiList.length,
+        loi: loiList
+    };
 }
+
+// Alias để giữ tương thích ngược
+export const nhapNhanVienTuExcel = nhapTaiKhoanTuExcel;
+
 

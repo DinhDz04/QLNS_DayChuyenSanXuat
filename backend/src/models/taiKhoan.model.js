@@ -18,7 +18,7 @@ export async function timTheoTenDangNhap(ten_dang_nhap) {
 export async function timTheoId(id) {
     const [rows] = await pool.query(
         `SELECT t.id, t.ten_dang_nhap, t.email, t.role, t.trang_thai, t.created_at, 
-                nv.ho_ten, nv.gioi_tinh, nv.so_dien_thoai, nv.ma_nhan_vien, nv.chuc_vu
+                nv.ho_ten, nv.gioi_tinh, nv.so_dien_thoai, nv.ma_nhan_vien, nv.chuc_vu, nv.day_chuyen_id
          FROM tai_khoan t
          LEFT JOIN nhan_vien nv ON t.id = nv.tai_khoan_id
          WHERE t.id = ? LIMIT 1`,
@@ -40,16 +40,18 @@ export async function taoTaiKhoan({ ten_dang_nhap, mat_khau_da_ma_hoa, email, ro
 export async function layTatCaTaiKhoan() {
     const [rows] = await pool.query(
         `SELECT t.id, t.ten_dang_nhap, t.email, t.role, t.trang_thai, t.created_at,
-                nv.ho_ten, nv.gioi_tinh, nv.so_dien_thoai, nv.ma_nhan_vien, nv.chuc_vu
+                nv.ho_ten, nv.gioi_tinh, nv.so_dien_thoai, nv.ma_nhan_vien, nv.chuc_vu, nv.day_chuyen_id,
+                dc.ten_day_chuyen
          FROM tai_khoan t
          LEFT JOIN nhan_vien nv ON t.id = nv.tai_khoan_id
+         LEFT JOIN day_chuyen dc ON nv.day_chuyen_id = dc.id
          ORDER BY t.created_at DESC`
     );
     return rows;
 }
 
 // Cập nhật thông tin tài khoản
-export async function capNhatTaiKhoan(id, { ten_dang_nhap, email, role, trang_thai, mat_khau_da_ma_hoa, ho_ten, so_dien_thoai, gioi_tinh }) {
+export async function capNhatTaiKhoan(id, { ten_dang_nhap, email, role, trang_thai, mat_khau_da_ma_hoa, ho_ten, so_dien_thoai, gioi_tinh, day_chuyen_id }) {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
@@ -77,9 +79,9 @@ export async function capNhatTaiKhoan(id, { ten_dang_nhap, email, role, trang_th
         if (existingNv.length > 0) {
             await connection.query(
                 `UPDATE nhan_vien 
-                 SET ho_ten = ?, gioi_tinh = ?, so_dien_thoai = ?, chuc_vu = ?
+                 SET ho_ten = ?, gioi_tinh = ?, so_dien_thoai = ?, chuc_vu = ?, day_chuyen_id = ?
                  WHERE tai_khoan_id = ?`,
-                [ho_ten, gioi_tinh || "Khac", so_dien_thoai || null, role, id]
+                [ho_ten, gioi_tinh || "Khac", so_dien_thoai || null, role, day_chuyen_id || null, id]
             );
         } else {
             // Sinh mã nhân viên ngẫu nhiên hoặc tự tăng
@@ -94,9 +96,9 @@ export async function capNhatTaiKhoan(id, { ten_dang_nhap, email, role, trang_th
             const maNhanVien = `DP${soLonNhat + 1}`;
 
             await connection.query(
-                `INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, gioi_tinh, so_dien_thoai, ngay_vao_lam, tai_khoan_id, chuc_vu, trang_thai) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 'DANG_LAM')`,
-                [maNhanVien, ho_ten || ten_dang_nhap, gioi_tinh || "Khac", so_dien_thoai || null, new Date(), id, role]
+                `INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, gioi_tinh, so_dien_thoai, ngay_vao_lam, tai_khoan_id, chuc_vu, trang_thai, day_chuyen_id) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'DANG_LAM', ?)`,
+                [maNhanVien, ho_ten || ten_dang_nhap, gioi_tinh || "Khac", so_dien_thoai || null, new Date(), id, role, day_chuyen_id || null]
             );
         }
 

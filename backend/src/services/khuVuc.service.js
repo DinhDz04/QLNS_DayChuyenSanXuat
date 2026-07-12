@@ -118,3 +118,78 @@ export async function layDanhSachKhachHang() {
     const [rows] = await pool.query("SELECT id, ten_khach_hang, mo_ta FROM khach_hang ORDER BY ten_khach_hang ASC");
     return rows;
 }
+
+/**
+ * Lấy cấu hình bản đồ khu vực (danh sách dây chuyền và vị trí tọa độ các công đoạn)
+ */
+export async function layBanDoKhuVuc(khuVucId) {
+    const khuVuc = await timKhuVucTheoId(khuVucId);
+    if (!khuVuc) {
+        const loi = new Error("Không tìm thấy khu vực");
+        loi.statusCode = 404;
+        throw loi;
+    }
+
+    const [dayChuyenRows] = await pool.query(
+        `SELECT id, ten_day_chuyen, trang_thai FROM day_chuyen WHERE khu_vuc_id = ?`,
+        [khuVucId]
+    );
+
+    const [congDoanRows] = await pool.query(
+        `SELECT cd.id AS cong_doan_id, cd.ten_cong_doan, cd.vi_tri_x, cd.vi_tri_y, cd.xoay,
+                yc.day_chuyen_id, yc.so_luong_can,
+                dc.ten_day_chuyen,
+                (SELECT COUNT(*) FROM phan_cong_nhan_su WHERE cong_doan_id = cd.id AND ngay = CURDATE()) AS so_luong_da_gan,
+                (SELECT GROUP_CONCAT(nv.ho_ten ORDER BY nv.ho_ten ASC SEPARATOR ', ')
+                 FROM phan_cong_nhan_su pc
+                 JOIN nhan_vien nv ON pc.nhan_vien_id = nv.id
+                 WHERE pc.cong_doan_id = cd.id AND pc.ngay = CURDATE()) AS danh_sach_nv
+         FROM cong_doan cd
+         JOIN yeu_cau_nhan_su yc ON cd.id = yc.cong_doan_id
+         JOIN day_chuyen dc ON yc.day_chuyen_id = dc.id
+         WHERE dc.khu_vuc_id = ?`,
+        [khuVucId]
+    );
+
+    return {
+        khu_vuc: khuVuc,
+        day_chuyen: dayChuyenRows,
+        cong_doan: congDoanRows
+    };
+}
+
+/**
+ * Lưu tọa độ và hướng xoay các công đoạn trên bản đồ khu vực
+ */
+export async function luuBanDoKhuVuc(khuVucId, { cong_doan_positions }) {
+    if (!Array.isArray(cong_doan_positions)) {
+        const loi = new Error("Dữ liệu vị trí công đoạn không hợp lệ");
+        loi.statusCode = 400;
+        throw loi;
+    }
+
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        for (const pos of cong_doan_positions) {
+            const x = pos.vi_tri_x !== undefined && pos.vi_tri_x !== null ? Number(pos.vi_tri_x) : null;
+            const y = pos.vi_tri_y !== undefined && pos.vi_tri_y !== null ? Number(pos.vi_tri_y) : null;
+            const xoay = pos.xoay !== undefined && pos.xoay !== null ? Number(pos.xoay) : 0;
+            const cdId = Number(pos.cong_doan_id);
+
+            await connection.query(
+                `UPDATE cong_doan SET vi_tri_x = ?, vi_tri_y = ?, xoay = ? WHERE id = ?`,
+                [x, y, xoay, cdId]
+            );
+        }
+
+        await connection.commit();
+        return true;
+    } catch (err) {
+        await connection.rollback();
+        throw err;
+    } finally {
+        connection.release();
+    }
+}

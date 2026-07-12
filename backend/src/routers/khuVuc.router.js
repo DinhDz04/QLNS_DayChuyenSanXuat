@@ -17,4 +17,8 @@ router.post("/", phanQuyen("ADMIN"), khuVucController.taoKhuVuc);
 router.put("/:id", phanQuyen("ADMIN"), khuVucController.capNhatKhuVuc);
 router.delete("/:id", phanQuyen("ADMIN"), khuVucController.xoaKhuVuc);
 
+// Bản đồ khu vực (canvas grid layout)
+router.get("/:id/ban-do", khuVucController.layBanDoKhuVuc);
+router.post("/:id/ban-do", phanQuyen("ADMIN", "LEADER_KHU_VUC"), khuVucController.luuBanDoKhuVuc);
+
 export default router;

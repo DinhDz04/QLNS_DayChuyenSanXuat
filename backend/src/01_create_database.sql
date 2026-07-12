@@ -31,7 +31,8 @@ CREATE TABLE day_chuyen(
  khu_vuc_id INT NOT NULL,
  leader_id INT NULL,
  trang_thai ENUM('HOAT_DONG','TAM_DUNG') DEFAULT 'HOAT_DONG',
- INDEX(khu_vuc_id)
+ INDEX(khu_vuc_id),
+ FOREIGN KEY(khu_vuc_id) REFERENCES khu_vuc(id)
 );
 
 CREATE TABLE cong_doan(
@@ -70,7 +71,6 @@ CREATE TABLE chung_chi_nhan_vien(
  nhan_vien_id INT NOT NULL,
  chung_chi_id INT NOT NULL,
  cap_do TINYINT NOT NULL,
- gioi_tinh ENUM('Nam','Nu'),
  ngay_cap DATE,
  ngay_het_han DATE,
  trang_thai ENUM('HIEU_LUC','HET_HAN','DAO_TAO') DEFAULT 'HIEU_LUC',

@@ -47,8 +47,8 @@ export async function taoDayChuyen(req, res) {
 // PUT /api/day-chuyen/:id
 export async function capNhatDayChuyen(req, res) {
     try {
-        const { ten_day_chuyen, khu_vuc_id, leader_id, trang_thai } = req.body;
-        const data = await dayChuyenService.capNhatDayChuyen(req.params.id, { ten_day_chuyen, khu_vuc_id, leader_id, trang_thai });
+        const { ten_day_chuyen, khu_vuc_id, leader_id, trang_thai, bo_phan } = req.body;
+        const data = await dayChuyenService.capNhatDayChuyen(req.params.id, { ten_day_chuyen, khu_vuc_id, leader_id, trang_thai, bo_phan });
         return res.json({ success: true, message: "Cập nhật dây chuyền thành công", data });
     } catch (err) {
         return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Lỗi server" });
@@ -108,6 +108,18 @@ export async function goPhanCongNhanSu(req, res) {
         const { nhan_vien_id, day_chuyen_id, cong_doan_id, ngay } = req.body;
         const data = await dayChuyenService.goPhanCongNhanSu({ nhan_vien_id, day_chuyen_id, cong_doan_id, ngay });
         return res.json({ success: true, message: "Đã gỡ nhân viên khỏi bộ phận dây chuyền", data });
+    } catch (err) {
+        return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Lỗi server" });
+    }
+}
+
+// POST /api/day-chuyen/:id/auto-assign
+export async function tuDongGanNhanSu(req, res) {
+    try {
+        const { id } = req.params;
+        const { ngay } = req.body;
+        const data = await dayChuyenService.tuDongGanNhanSu({ day_chuyen_id: id, ngay });
+        return res.json(data);
     } catch (err) {
         return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Lỗi server" });
     }

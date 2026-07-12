@@ -1,6 +1,5 @@
 import * as adminService from "../services/admin.service.js";
 import * as authService from "../services/auth.service.js";
-import * as excelNhanVienService from "../services/excelNhanVien.service.js";
 import * as XLSX from "xlsx";
 
 // GET /api/admin/tai-khoan
@@ -22,7 +21,7 @@ export async function layDanhSachTaiKhoan(req, res) {
 // POST /api/admin/tai-khoan
 export async function taoTaiKhoan(req, res) {
     try {
-        const { ten_dang_nhap, mat_khau, email, role, ho_ten, so_dien_thoai, gioi_tinh } = req.body;
+        const { ten_dang_nhap, mat_khau, email, role, ho_ten, so_dien_thoai, gioi_tinh, day_chuyen_id } = req.body;
         const data = await adminService.taoTaiKhoan({
             ten_dang_nhap,
             mat_khau,
@@ -30,7 +29,8 @@ export async function taoTaiKhoan(req, res) {
             role,
             ho_ten,
             so_dien_thoai,
-            gioi_tinh
+            gioi_tinh,
+            day_chuyen_id
         });
         return res.status(201).json({
             success: true,
@@ -94,7 +94,7 @@ export async function thayDoiCapBacTaiKhoan(req, res) {
 export async function capNhatTaiKhoan(req, res) {
     try {
         const { id } = req.params;
-        const { ten_dang_nhap, ho_ten, email, so_dien_thoai, role, trang_thai, mat_khau, gioi_tinh } = req.body;
+        const { ten_dang_nhap, ho_ten, email, so_dien_thoai, role, trang_thai, mat_khau, gioi_tinh, day_chuyen_id } = req.body;
         const data = await adminService.capNhatTaiKhoan(id, {
             ten_dang_nhap,
             ho_ten,
@@ -103,7 +103,8 @@ export async function capNhatTaiKhoan(req, res) {
             so_dien_thoai,
             role,
             trang_thai,
-            gioi_tinh
+            gioi_tinh,
+            day_chuyen_id
         });
         return res.json({
             success: true,
@@ -197,7 +198,7 @@ export async function nhapExcelNhanVien(req, res) {
             });
         }
 
-        const ketQua = await excelNhanVienService.nhapNhanVienTuExcel(req.file.buffer);
+        const ketQua = await adminService.nhapNhanVienTuExcel(req.file.buffer);
 
         return res.json({
             success: true,

@@ -19,5 +19,6 @@ router.put("/:id", phanQuyen("ADMIN", "LEADER_KHU_VUC"), dayChuyenController.cap
 router.delete("/:id", phanQuyen("ADMIN"), dayChuyenController.xoaDayChuyen);
 router.post("/phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), dayChuyenController.phanCongNhanSu);
 router.post("/go-phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), dayChuyenController.goPhanCongNhanSu);
+router.post("/:id/auto-assign", phanQuyen("ADMIN", "LEADER_KHU_VUC"), dayChuyenController.tuDongGanNhanSu);
 
 export default router;

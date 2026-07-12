@@ -7,7 +7,9 @@ export async function layDanhSachDayChuyen(nguoiDung) {
     let query = `
         SELECT dc.id, dc.ten_day_chuyen, dc.khu_vuc_id, dc.leader_id, dc.trang_thai,
                kv.ten_khu_vuc,
-               nv.ho_ten AS ten_leader, nv.ma_nhan_vien AS ma_leader
+               nv.ho_ten AS ten_leader, nv.ma_nhan_vien AS ma_leader,
+               (SELECT COALESCE(SUM(so_luong_can), 0) FROM yeu_cau_nhan_su WHERE day_chuyen_id = dc.id) AS total_yeu_cau,
+               (SELECT COUNT(*) FROM phan_cong_nhan_su WHERE day_chuyen_id = dc.id AND ngay = CURDATE()) AS total_hien_co
         FROM day_chuyen dc
         LEFT JOIN khu_vuc kv ON dc.khu_vuc_id = kv.id
         LEFT JOIN nhan_vien nv ON dc.leader_id = nv.id
@@ -101,6 +103,17 @@ export async function taoDayChuyen({ ten_day_chuyen, khu_vuc_id, leader_id, tran
     try {
         await connection.beginTransaction();
 
+        // Kiểm tra trùng tên dây chuyền trong cùng khu vực
+        const [trungDayChuyen] = await connection.query(
+            "SELECT id FROM day_chuyen WHERE ten_day_chuyen = ? AND khu_vuc_id = ? LIMIT 1",
+            [ten_day_chuyen, khu_vuc_id]
+        );
+        if (trungDayChuyen.length > 0) {
+            const loi = new Error("Tên dây chuyền đã tồn tại trong khu vực này");
+            loi.statusCode = 409;
+            throw loi;
+        }
+
         // 1. Thêm dây chuyền vào bảng day_chuyen
         const [kqDayChuyen] = await connection.query(
             "INSERT INTO day_chuyen (ten_day_chuyen, khu_vuc_id, leader_id, trang_thai) VALUES (?, ?, ?, ?)",
@@ -110,20 +123,10 @@ export async function taoDayChuyen({ ten_day_chuyen, khu_vuc_id, leader_id, tran
 
         // 2. Thêm các bộ phận (nếu có gửi lên)
         if (bo_phan && Array.isArray(bo_phan) && bo_phan.length > 0) {
-            // Bộ đếm thứ tự tăng dần cho từng loại bộ phận trong dây chuyền này
-            const demBoPhan = {};
-
+            let index = 1;
             for (const bp of bo_phan) {
-                const loaiChuan = chuanHoaTenBoPhan(bp.loai_bo_phan);
-                
-                // Tăng thứ tự
-                if (!demBoPhan[loaiChuan]) {
-                    demBoPhan[loaiChuan] = 1;
-                } else {
-                    demBoPhan[loaiChuan]++;
-                }
-
-                const tenBoPhanMoi = `${loaiChuan} ${demBoPhan[loaiChuan]}`;
+                const tenBoPhanMoi = `${ten_day_chuyen} ${index}`;
+                index++;
                 const soLuongCan = Number(bp.so_luong_can) || 1;
 
                 // A. Thêm vào bảng cong_doan
@@ -154,7 +157,7 @@ export async function taoDayChuyen({ ten_day_chuyen, khu_vuc_id, leader_id, tran
 /**
  * Cập nhật dây chuyền
  */
-export async function capNhatDayChuyen(id, { ten_day_chuyen, khu_vuc_id, leader_id, trang_thai }) {
+export async function capNhatDayChuyen(id, { ten_day_chuyen, khu_vuc_id, leader_id, trang_thai, bo_phan }) {
     if (!ten_day_chuyen || !khu_vuc_id) {
         const loi = new Error("Tên dây chuyền và Khu vực không được để trống");
         loi.statusCode = 400;
@@ -168,12 +171,96 @@ export async function capNhatDayChuyen(id, { ten_day_chuyen, khu_vuc_id, leader_
         throw loi;
     }
 
-    await pool.query(
-        "UPDATE day_chuyen SET ten_day_chuyen = ?, khu_vuc_id = ?, leader_id = ?, trang_thai = ? WHERE id = ?",
-        [ten_day_chuyen, khu_vuc_id, leader_id || null, trang_thai || "HOAT_DONG", id]
-    );
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
 
-    return { id, ten_day_chuyen, khu_vuc_id, leader_id, trang_thai };
+        // Kiểm tra trùng tên dây chuyền trong cùng khu vực
+        const [trungDayChuyen] = await connection.query(
+            "SELECT id FROM day_chuyen WHERE ten_day_chuyen = ? AND khu_vuc_id = ? AND id != ? LIMIT 1",
+            [ten_day_chuyen, khu_vuc_id, id]
+        );
+        if (trungDayChuyen.length > 0) {
+            const loi = new Error("Tên dây chuyền đã tồn tại trong khu vực này");
+            loi.statusCode = 409;
+            throw loi;
+        }
+
+        // 1. Cập nhật thông tin dây chuyền
+        await connection.query(
+            "UPDATE day_chuyen SET ten_day_chuyen = ?, khu_vuc_id = ?, leader_id = ?, trang_thai = ? WHERE id = ?",
+            [ten_day_chuyen, khu_vuc_id, leader_id || null, trang_thai || "HOAT_DONG", id]
+        );
+
+        // 2. Cập nhật cấu hình công đoạn nếu có gửi danh sách bo_phan
+        if (bo_phan && Array.isArray(bo_phan)) {
+            // Lấy danh sách các công đoạn hiện có của dây chuyền này
+            const [rowsYc] = await connection.query(
+                "SELECT cong_doan_id FROM yeu_cau_nhan_su WHERE day_chuyen_id = ?",
+                [id]
+            );
+            const listCongDoanIdsHienTai = rowsYc.map(r => r.cong_doan_id);
+
+            // Các công đoạn được gửi lên cập nhật
+            const listCongDoanIdsGuiLen = bo_phan
+                .filter(bp => bp.cong_doan_id)
+                .map(bp => Number(bp.cong_doan_id));
+
+            // Xóa các yêu cầu nhân sự không còn trong danh sách gửi lên
+            const listIdsXoa = listCongDoanIdsHienTai.filter(idHienTai => !listCongDoanIdsGuiLen.includes(idHienTai));
+            if (listIdsXoa.length > 0) {
+                await connection.query(
+                    "DELETE FROM yeu_cau_nhan_su WHERE day_chuyen_id = ? AND cong_doan_id IN (?)",
+                    [id, listIdsXoa]
+                );
+                // Cố gắng xóa ở bảng cong_doan, nếu bị khóa ngoại thì bỏ qua (vẫn giữ lại lịch sử phân công)
+                try {
+                    await connection.query("DELETE FROM cong_doan WHERE id IN (?)", [listIdsXoa]);
+                } catch (e) {
+                    console.log("Không thể xóa hoàn toàn một số công đoạn khỏi bảng cong_doan do ràng buộc dữ liệu cũ:", e.message);
+                }
+            }
+
+            let index = 1;
+            for (const bp of bo_phan) {
+                const soLuongCan = Number(bp.so_luong_can) || 1;
+                const tenBoPhanMoi = `${ten_day_chuyen} ${index}`;
+                index++;
+                
+                if (bp.cong_doan_id) {
+                    // Cập nhật công đoạn hiện có
+                    await connection.query(
+                        "UPDATE cong_doan SET ten_cong_doan = ? WHERE id = ?",
+                        [tenBoPhanMoi, bp.cong_doan_id]
+                    );
+                    await connection.query(
+                        "UPDATE yeu_cau_nhan_su SET so_luong_can = ? WHERE day_chuyen_id = ? AND cong_doan_id = ?",
+                        [soLuongCan, id, bp.cong_doan_id]
+                    );
+                } else {
+                    // Thêm mới công đoạn
+                    const [kqCongDoan] = await connection.query(
+                        "INSERT INTO cong_doan (ten_cong_doan, mo_ta) VALUES (?, ?)",
+                        [tenBoPhanMoi, `Bộ phận ${tenBoPhanMoi} thuộc dây chuyền ${ten_day_chuyen}`]
+                    );
+                    const newCongDoanId = kqCongDoan.insertId;
+
+                    await connection.query(
+                        "INSERT INTO yeu_cau_nhan_su (day_chuyen_id, cong_doan_id, so_luong_can) VALUES (?, ?, ?)",
+                        [id, newCongDoanId, soLuongCan]
+                    );
+                }
+            }
+        }
+
+        await connection.commit();
+        return { id, ten_day_chuyen, khu_vuc_id, leader_id, trang_thai };
+    } catch (err) {
+        await connection.rollback();
+        throw err;
+    } finally {
+        connection.release();
+    }
 }
 
 /**
@@ -350,7 +437,7 @@ export async function layUngVienChoBoPhan(congDoanId) {
         const [allNhanVien] = await pool.query(
             `SELECT id, ho_ten, ma_nhan_vien 
              FROM nhan_vien 
-             WHERE trang_thai = 'DANG_LAM'`
+             WHERE trang_thai = 'DANG_LAM' AND chuc_vu = 'NHAN_VIEN'`
         );
         return allNhanVien;
     }
@@ -361,7 +448,7 @@ export async function layUngVienChoBoPhan(congDoanId) {
         `SELECT nv.id, nv.ho_ten, nv.ma_nhan_vien, ccnv.cap_do
          FROM nhan_vien nv
          JOIN chung_chi_nhan_vien ccnv ON nv.id = ccnv.nhan_vien_id
-         WHERE ccnv.chung_chi_id = ? AND ccnv.trang_thai = 'HIEU_LUC' AND nv.trang_thai = 'DANG_LAM'`,
+         WHERE ccnv.chung_chi_id = ? AND ccnv.trang_thai = 'HIEU_LUC' AND nv.trang_thai = 'DANG_LAM' AND nv.chuc_vu = 'NHAN_VIEN'`,
         [chungChiId]
     );
 
@@ -423,5 +510,130 @@ export async function goPhanCongNhanSu({ nhan_vien_id, day_chuyen_id, cong_doan_
     );
 
     return { success: true, message: "Đã gỡ nhân sự khỏi bộ phận" };
+}
+
+/**
+ * Tự động gán nhân sự chưa phân công vào các công đoạn thiếu nhân sự của dây chuyền
+ */
+export async function tuDongGanNhanSu({ day_chuyen_id, ngay }) {
+    const ngayDinhDang = ngay || new Date().toISOString().split("T")[0];
+
+    // 1. Lấy chi tiết dây chuyền để xem công đoạn nào thiếu
+    const chiTiet = await layChiTietDayChuyen(day_chuyen_id, ngayDinhDang);
+    const boPhanThieu = chiTiet.bo_phan.filter(bp => bp.trang_thai === "THIEU");
+
+    if (boPhanThieu.length === 0) {
+        return { success: true, message: "Dây chuyền đã đủ nhân sự, không cần tự động gán.", danhSachGan: [] };
+    }
+
+    // 2. Lấy danh sách nhân viên đang làm việc và CHƯA được phân công bất cứ đâu trong ngày này
+    const [nhanVienRanh] = await pool.query(
+        `SELECT nv.id, nv.ho_ten, nv.ma_nhan_vien 
+         FROM nhan_vien nv
+         WHERE nv.trang_thai = 'DANG_LAM' 
+           AND nv.chuc_vu = 'NHAN_VIEN'
+           AND nv.id NOT IN (
+               SELECT nhan_vien_id FROM phan_cong_nhan_su WHERE ngay = ?
+           )`,
+        [ngayDinhDang]
+    );
+
+    if (nhanVienRanh.length === 0) {
+        throw new Error("Không còn nhân sự nào trống trong ngày này để tự động gán!");
+    }
+
+    // Danh sách nhân viên trống để gán dần (copy sang mảng động)
+    let dsNhanVienTrong = [...nhanVienRanh];
+    const danhSachGanThanhCong = [];
+
+    // Lấy ca làm mặc định
+    let caLamId;
+    const [caLamList] = await pool.query("SELECT id FROM ca_lam_viec LIMIT 1");
+    if (caLamList.length > 0) {
+        caLamId = caLamList[0].id;
+    } else {
+        const [kqCa] = await pool.query(
+            "INSERT INTO ca_lam_viec (ten_ca, gio_bat_dau, gio_ket_thuc) VALUES ('Ca Hanh Chinh', '08:00:00', '17:00:00')"
+        );
+        caLamId = kqCa.insertId;
+    }
+
+    // 3. Tiến hành gán
+    // Vòng 1: Gán nhân viên có chứng chỉ phù hợp
+    for (const bp of boPhanThieu) {
+        let thieu = bp.so_luong_thieu;
+        if (thieu <= 0) continue;
+
+        // Quét tìm chứng chỉ yêu cầu
+        const tenChungChiRequired = layTenChungChiTuCongDoan(bp.ten_bo_phan);
+        const [ccRows] = await pool.query("SELECT id FROM chung_chi WHERE ten_chung_chi = ? LIMIT 1", [tenChungChiRequired]);
+        
+        if (ccRows.length > 0) {
+            const chungChiId = ccRows[0].id;
+            // Tìm nhân sự trong dsNhanVienTrong có chứng chỉ này
+            const [usersCoChungChi] = await pool.query(
+                `SELECT nhan_vien_id FROM chung_chi_nhan_vien 
+                 WHERE chung_chi_id = ? AND trang_thai = 'HIEU_LUC'`,
+                [chungChiId]
+            );
+            const userIdsCoChungChi = usersCoChungChi.map(u => u.nhan_vien_id);
+
+            // Lọc ra các ứng viên rảnh có chứng chỉ
+            const candidates = dsNhanVienTrong.filter(nv => userIdsCoChungChi.includes(nv.id));
+
+            for (const cand of candidates) {
+                if (thieu <= 0) break;
+                // Gán
+                await pool.query(
+                    `INSERT INTO phan_cong_nhan_su (nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, trang_thai)
+                     VALUES (?, ?, ?, ?, ?, 'DANG_LAM')`,
+                    [cand.id, day_chuyen_id, bp.cong_doan_id, caLamId, ngayDinhDang]
+                );
+                danhSachGanThanhCong.push({
+                    nhan_vien_id: cand.id,
+                    ma_nhan_vien: cand.ma_nhan_vien,
+                    ho_ten: cand.ho_ten,
+                    ten_cong_doan: bp.ten_bo_phan,
+                    co_chung_chi: true
+                });
+                // Xóa khỏi danh sách trống
+                dsNhanVienTrong = dsNhanVienTrong.filter(nv => nv.id !== cand.id);
+                thieu--;
+            }
+        }
+        bp.so_luong_thieu = thieu; // Cập nhật số lượng còn thiếu sau Vòng 1
+    }
+
+    // Vòng 2: Nếu vẫn thiếu, gán người trống không có chứng chỉ phù hợp (người rảnh bất kỳ còn lại)
+    for (const bp of boPhanThieu) {
+        let thieu = bp.so_luong_thieu;
+        if (thieu <= 0) continue;
+
+        while (thieu > 0 && dsNhanVienTrong.length > 0) {
+            const cand = dsNhanVienTrong[0];
+            // Gán
+            await pool.query(
+                `INSERT INTO phan_cong_nhan_su (nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, trang_thai)
+                 VALUES (?, ?, ?, ?, ?, 'DANG_LAM')`,
+                [cand.id, day_chuyen_id, bp.cong_doan_id, caLamId, ngayDinhDang]
+            );
+            danhSachGanThanhCong.push({
+                nhan_vien_id: cand.id,
+                ma_nhan_vien: cand.ma_nhan_vien,
+                ho_ten: cand.ho_ten,
+                ten_cong_doan: bp.ten_bo_phan,
+                co_chung_chi: false
+            });
+            // Xóa khỏi danh sách trống
+            dsNhanVienTrong.shift();
+            thieu--;
+        }
+    }
+
+    return {
+        success: true,
+        message: `Đã tự động gán thành công ${danhSachGanThanhCong.length} nhân viên.`,
+        danhSachGan: danhSachGanThanhCong
+    };
 }
 

@@ -70,3 +70,31 @@ export async function layThongTinCaNhan(req, res) {
         return res.status(500).json({ success: false, message: "Lỗi server" });
     }
 }
+
+// PUT /api/auth/profile (Cập nhật thông tin cá nhân của tôi)
+export async function capNhatThongTinCaNhan(req, res) {
+    try {
+        const { mat_khau, email, ho_ten, so_dien_thoai, gioi_tinh } = req.body;
+        const nguoiDungId = req.nguoiDung.id;
+
+        const data = await authService.capNhatThongTinCaNhan(nguoiDungId, {
+            mat_khau,
+            email,
+            ho_ten,
+            so_dien_thoai,
+            gioi_tinh
+        });
+
+        return res.json({
+            success: true,
+            message: "Cập nhật thông tin cá nhân thành công",
+            data
+        });
+    } catch (err) {
+        return res.status(err.statusCode || 500).json({
+            success: false,
+            message: err.message || "Lỗi server"
+        });
+    }
+}
+

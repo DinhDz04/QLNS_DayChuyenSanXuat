@@ -90,3 +90,34 @@ export async function dangKy({ ten_dang_nhap, mat_khau, email, role }) {
 
     return { id, ten_dang_nhap, email, role: role || "NHAN_VIEN" };
 }
+
+/**
+ * Cập nhật thông tin cá nhân người dùng đang đăng nhập
+ */
+export async function capNhatThongTinCaNhan(id, { mat_khau, email, ho_ten, so_dien_thoai, gioi_tinh }) {
+    const taiKhoan = await taiKhoanModel.timTheoId(id);
+    if (!taiKhoan) {
+        const error = new Error("Tài khoản không tồn tại");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    let mat_khau_da_ma_hoa = null;
+    if (mat_khau && mat_khau.trim() !== "") {
+        mat_khau_da_ma_hoa = await bcrypt.hash(mat_khau, 10);
+    }
+
+    await taiKhoanModel.capNhatTaiKhoan(id, {
+        ten_dang_nhap: taiKhoan.ten_dang_nhap,
+        email: email !== undefined ? email : taiKhoan.email,
+        role: taiKhoan.role,
+        trang_thai: taiKhoan.trang_thai,
+        mat_khau_da_ma_hoa,
+        ho_ten: ho_ten !== undefined ? ho_ten : taiKhoan.ho_ten,
+        so_dien_thoai: so_dien_thoai !== undefined ? so_dien_thoai : taiKhoan.so_dien_thoai,
+        gioi_tinh: gioi_tinh !== undefined ? gioi_tinh : taiKhoan.gioi_tinh
+    });
+
+    return await taiKhoanModel.timTheoId(id);
+}
+

@@ -74,3 +74,23 @@ export async function xoaKhuVuc(req, res) {
         return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Lỗi server" });
     }
 }
+
+// GET /api/khu-vuc/:id/ban-do
+export async function layBanDoKhuVuc(req, res) {
+    try {
+        const data = await khuVucService.layBanDoKhuVuc(req.params.id);
+        return res.json({ success: true, data });
+    } catch (err) {
+        return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Lỗi server" });
+    }
+}
+
+// POST /api/khu-vuc/:id/ban-do
+export async function luuBanDoKhuVuc(req, res) {
+    try {
+        await khuVucService.luuBanDoKhuVuc(req.params.id, req.body);
+        return res.json({ success: true, message: "Đã lưu sơ đồ bản đồ khu vực thành công" });
+    } catch (err) {
+        return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Lỗi server" });
+    }
+}
