@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext.jsx";
+import Modal from "../../../components/ui/Modal.jsx";
 import {
     layChiTietDayChuyen,
     layUngVienChoBoPhan,
@@ -31,6 +32,14 @@ export default function ChiTietDayChuyen() {
     // Chế độ xem: "CONG_DOAN" (xem theo từng công đoạn) hoặc "TAT_CA" (xem gộp toàn bộ)
     const [cheDoXem, setCheDoXem] = useState("CONG_DOAN");
     const [tuKhoaTimKiemNhanSu, setTuKhoaTimKiemNhanSu] = useState("");
+
+    // State cho Modal thêm/sửa công đoạn đẹp mắt thay thế window.prompt
+    const [modalCongDoanOpen, setModalCongDoanOpen] = useState(false);
+    const [modalCongDoanCheDo, setModalCongDoanCheDo] = useState("THEM"); // "THEM" hoặc "SUA"
+    const [modalCongDoanTarget, setModalCongDoanTarget] = useState(null);
+    const [modalCongDoanTen, setModalCongDoanTen] = useState("");
+    const [modalCongDoanMin, setModalCongDoanMin] = useState(1);
+    const [modalCongDoanMax, setModalCongDoanMax] = useState(1);
 
     const laAdminOrLeaderKhuVuc = nguoiDung && ["ADMIN", "LEADER_KHU_VUC"].includes(nguoiDung.role);
 
@@ -80,14 +89,19 @@ export default function ChiTietDayChuyen() {
     }
 
     // Gán nhiều nhân sự đã chọn
-    async function xuLyGanMulti(congDoanId, soLuongThieu) {
+    async function xuLyGanMulti(congDoanId, bp) {
         if (danhSachChonMulti.length === 0) {
             alert("Vui lòng chọn ít nhất một nhân viên!");
             return;
         }
 
+        const max = bp.so_luong_max !== null ? bp.so_luong_max : bp.so_luong_can;
+        if (danhSachChonMulti.length + bp.so_luong_da_gan > max) {
+            alert(`Lỗi: Không thể gán quá số lượng nhân sự tối đa (${max} người)! Hiện tại đã gán ${bp.so_luong_da_gan} người.`);
+            return;
+        }
+
         try {
-            // Thực hiện gán đồng thời cho tất cả nhân viên được tích chọn
             await Promise.all(
                 danhSachChonMulti.map((nvId) =>
                     phanCongNhanSu({
@@ -146,70 +160,64 @@ export default function ChiTietDayChuyen() {
         }
     }
 
-    // Thêm công đoạn mới trực tiếp từ trang chi tiết
-    async function xuLyThemCongDoan() {
+    // Mở modal Thêm công đoạn
+    function kichHoatThemCongDoan() {
         if (!laAdminOrLeaderKhuVuc) return;
-        const tenCongDoanMoi = `${day_chuyen.ten_day_chuyen} ${bo_phan.length + 1}`;
-        const soLuongString = window.prompt(
-            `Thêm công đoạn mới: "${tenCongDoanMoi}"\nNhập số lượng nhân sự định biên yêu cầu:`,
-            "1"
-        );
-        if (soLuongString === null) return;
-        const soLuong = Number(soLuongString);
-        if (isNaN(soLuong) || soLuong <= 0) {
-            alert("Định biên nhân sự phải là một số nguyên dương lớn hơn 0!");
-            return;
-        }
-
-        try {
-            const updatedBoPhan = bo_phan.map(bp => ({
-                cong_doan_id: bp.cong_doan_id,
-                loai_bo_phan: bp.ten_bo_phan,
-                so_luong_can: bp.so_luong_can
-            }));
-            updatedBoPhan.push({
-                cong_doan_id: null,
-                loai_bo_phan: tenCongDoanMoi,
-                so_luong_can: soLuong
-            });
-
-            const res = await capNhatDayChuyen(day_chuyen.id, {
-                ten_day_chuyen: day_chuyen.ten_day_chuyen,
-                khu_vuc_id: day_chuyen.khu_vuc_id,
-                leader_id: day_chuyen.leader_id,
-                trang_thai: day_chuyen.trang_thai,
-                bo_phan: updatedBoPhan
-            });
-
-            if (res.success) {
-                hienThongBao(`Đã thêm thành công công đoạn "${tenCongDoanMoi}"!`);
-                TaiChiTiet();
-            }
-        } catch (err) {
-            alert(err.message || "Thêm công đoạn thất bại");
-        }
+        setModalCongDoanCheDo("THEM");
+        setModalCongDoanTen(`${day_chuyen.ten_day_chuyen} ${bo_phan.length + 1}`);
+        setModalCongDoanMin(1);
+        setModalCongDoanMax(1);
+        setModalCongDoanOpen(true);
     }
 
-    // Sửa định biên công đoạn trực tiếp
-    async function xuLySuaDinhBien(bpTarget) {
+    // Mở modal Sửa định biên công đoạn
+    function kichHoatSuaDinhBien(bp) {
         if (!laAdminOrLeaderKhuVuc) return;
-        const soLuongString = window.prompt(
-            `Sửa định biên công đoạn "${bpTarget.ten_bo_phan}"\nNhập số lượng định biên mới:`,
-            String(bpTarget.so_luong_can)
-        );
-        if (soLuongString === null) return;
-        const soLuong = Number(soLuongString);
-        if (isNaN(soLuong) || soLuong <= 0) {
-            alert("Định biên nhân sự phải là một số nguyên dương lớn hơn 0!");
+        setModalCongDoanCheDo("SUA");
+        setModalCongDoanTarget(bp);
+        setModalCongDoanTen(bp.ten_bo_phan);
+        setModalCongDoanMin(bp.so_luong_min !== null ? bp.so_luong_min : bp.so_luong_can);
+        setModalCongDoanMax(bp.so_luong_max !== null ? bp.so_luong_max : bp.so_luong_can);
+        setModalCongDoanOpen(true);
+    }
+
+    // Xử lý lưu công đoạn từ Modal đẹp mắt (thay thế window.prompt)
+    async function xuLyLuuModalCongDoan() {
+        if (!modalCongDoanTen.trim()) {
+            alert("Tên công đoạn không được để trống!");
+            return;
+        }
+        if (modalCongDoanMax < modalCongDoanMin) {
+            alert("Lỗi: Số lượng tối đa phải lớn hơn hoặc bằng tối thiểu!");
             return;
         }
 
         try {
-            const updatedBoPhan = bo_phan.map(bp => ({
-                cong_doan_id: bp.cong_doan_id,
-                loai_bo_phan: bp.ten_bo_phan,
-                so_luong_can: bp.cong_doan_id === bpTarget.cong_doan_id ? soLuong : bp.so_luong_can
-            }));
+            let updatedBoPhan = [];
+            if (modalCongDoanCheDo === "THEM") {
+                updatedBoPhan = bo_phan.map(bp => ({
+                    cong_doan_id: bp.cong_doan_id,
+                    loai_bo_phan: bp.ten_bo_phan,
+                    so_luong_can: bp.so_luong_min !== null ? bp.so_luong_min : bp.so_luong_can,
+                    so_luong_min: bp.so_luong_min !== null ? bp.so_luong_min : bp.so_luong_can,
+                    so_luong_max: bp.so_luong_max !== null ? bp.so_luong_max : bp.so_luong_can
+                }));
+                updatedBoPhan.push({
+                    cong_doan_id: null,
+                    loai_bo_phan: modalCongDoanTen.trim(),
+                    so_luong_can: modalCongDoanMin,
+                    so_luong_min: modalCongDoanMin,
+                    so_luong_max: modalCongDoanMax
+                });
+            } else {
+                updatedBoPhan = bo_phan.map(bp => ({
+                    cong_doan_id: bp.cong_doan_id,
+                    loai_bo_phan: bp.ten_bo_phan,
+                    so_luong_can: bp.cong_doan_id === modalCongDoanTarget.cong_doan_id ? modalCongDoanMin : (bp.so_luong_min !== null ? bp.so_luong_min : bp.so_luong_can),
+                    so_luong_min: bp.cong_doan_id === modalCongDoanTarget.cong_doan_id ? modalCongDoanMin : (bp.so_luong_min !== null ? bp.so_luong_min : bp.so_luong_can),
+                    so_luong_max: bp.cong_doan_id === modalCongDoanTarget.cong_doan_id ? modalCongDoanMax : (bp.so_luong_max !== null ? bp.so_luong_max : bp.so_luong_can)
+                }));
+            }
 
             const res = await capNhatDayChuyen(day_chuyen.id, {
                 ten_day_chuyen: day_chuyen.ten_day_chuyen,
@@ -220,11 +228,16 @@ export default function ChiTietDayChuyen() {
             });
 
             if (res.success) {
-                hienThongBao(`Đã sửa định biên công đoạn "${bpTarget.ten_bo_phan}" thành ${soLuong} người!`);
+                hienThongBao(
+                    modalCongDoanCheDo === "THEM"
+                        ? `Đã thêm thành công công đoạn "${modalCongDoanTen}"!`
+                        : `Đã sửa định biên công đoạn "${modalCongDoanTarget.ten_bo_phan}" thành ${modalCongDoanMin}-${modalCongDoanMax} người!`
+                );
+                setModalCongDoanOpen(false);
                 TaiChiTiet();
             }
         } catch (err) {
-            alert(err.message || "Cập nhật định biên thất bại");
+            alert(err.message || "Lưu công đoạn thất bại");
         }
     }
 
@@ -239,13 +252,14 @@ export default function ChiTietDayChuyen() {
 
         if (window.confirm(confirmMsg)) {
             try {
-                // Loại bỏ công đoạn bị xóa và đánh số lại
                 const updatedBoPhan = bo_phan
                     .filter(bp => bp.cong_doan_id !== bpTarget.cong_doan_id)
                     .map((bp, idx) => ({
                         cong_doan_id: bp.cong_doan_id,
                         loai_bo_phan: `${day_chuyen.ten_day_chuyen} ${idx + 1}`,
-                        so_luong_can: bp.so_luong_can
+                        so_luong_can: bp.so_luong_min !== null ? bp.so_luong_min : bp.so_luong_can,
+                        so_luong_min: bp.so_luong_min !== null ? bp.so_luong_min : bp.so_luong_can,
+                        so_luong_max: bp.so_luong_max !== null ? bp.so_luong_max : bp.so_luong_can
                     }));
 
                 const res = await capNhatDayChuyen(day_chuyen.id, {
@@ -286,7 +300,6 @@ export default function ChiTietDayChuyen() {
 
     const { day_chuyen, bo_phan } = duLieu;
 
-    // Gộp toàn bộ nhân viên của line để hiển thị ở tab "Tất cả"
     const tatCaNhanVienDaGan = bo_phan.reduce((acc, bp) => {
         const nvBp = bp.nhan_vien.map(nv => ({
             ...nv,
@@ -296,7 +309,6 @@ export default function ChiTietDayChuyen() {
         return [...acc, ...nvBp];
     }, []);
 
-    // Lọc theo từ khóa tìm kiếm nhân viên
     const locNhanVienTheoTuKhoa = (nvList) => {
         const query = tuKhoaTimKiemNhanSu.toLowerCase().trim();
         if (!query) return nvList;
@@ -310,29 +322,30 @@ export default function ChiTietDayChuyen() {
     return (
         <div className="noi-dung-admin">
             {/* Header chi tiết */}
-            <div className="admin-header-bar" style={{ borderBottom: "1px solid #cbd5e1", paddingBottom: "16px", marginBottom: "20px" }}>
-                <div className="tieu-de-khoi">
-                    <h2>Chi tiết dây chuyền: {day_chuyen.ten_day_chuyen}</h2>
-                    <p style={{ marginTop: "4px" }}>
+            <div className="admin-header-bar" style={{ borderBottom: "1px solid #cbd5e1", paddingBottom: "16px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "16px" }}>
+                <div className="tieu-de-khoi" style={{ flex: "1 1 300px" }}>
+                    <h2 style={{ margin: 0 }}>Chi tiết dây chuyền: {day_chuyen.ten_day_chuyen}</h2>
+                    <p style={{ marginTop: "6px", marginBottom: 0 }}>
                         Khu vực: <strong>{day_chuyen.ten_khu_vuc}</strong> | Leader dây chuyền: <strong>{day_chuyen.ten_leader || "Chưa gán"}</strong>
                     </p>
                 </div>
-                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                
+                <div style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                         <label style={{ fontSize: "11px", fontWeight: "bold", color: "var(--text-muted)", textTransform: "uppercase" }}>Chọn Ngày Làm Việc</label>
                         <input
                             type="date"
                             value={ngay}
                             onChange={(e) => setNgay(e.target.value)}
-                            style={{ padding: "8px 12px", border: "1px solid #cbd5e0", borderRadius: "var(--radius)", fontSize: "14px" }}
+                            style={{ padding: "8px 12px", border: "1px solid #cbd5e0", borderRadius: "var(--radius)", fontSize: "14px", height: "38px" }}
                         />
                     </div>
                     {laAdminOrLeaderKhuVuc && (
                         <>
                             <button
                                 className="nut-chinh"
-                                onClick={xuLyThemCongDoan}
-                                style={{ alignSelf: "flex-end", height: "38px", backgroundColor: "#10b981" }}
+                                onClick={kichHoatThemCongDoan}
+                                style={{ height: "38px", backgroundColor: "#10b981", width: "auto", padding: "0 16px" }}
                             >
                                 + Thêm công đoạn
                             </button>
@@ -340,13 +353,13 @@ export default function ChiTietDayChuyen() {
                                 className="nut-chinh" 
                                 onClick={xuLyAutoAssign}
                                 disabled={dangAutoAssign}
-                                style={{ alignSelf: "flex-end", height: "38px", backgroundColor: "#0284c7" }}
+                                style={{ height: "38px", backgroundColor: "#0284c7", width: "auto", padding: "0 16px" }}
                             >
                                 {dangAutoAssign ? "Đang gán..." : "🤖 Tự động gán nhân sự"}
                             </button>
                         </>
                     )}
-                    <button className="nut-chinh" onClick={() => navigate("/admin/day-chuyen")} style={{ alignSelf: "flex-end", height: "38px" }}>
+                    <button className="nut-chinh" onClick={() => navigate("/admin/day-chuyen")} style={{ height: "38px", width: "auto", padding: "0 16px" }}>
                         Quay lại
                     </button>
                 </div>
@@ -354,7 +367,7 @@ export default function ChiTietDayChuyen() {
 
             {thongBao && <div className="thong-bao-thanh-cong">{thongBao}</div>}
 
-            {/* 1. SƠ ĐỒ TRỰC QUAN CÁC CÔNG ĐOẠN SẢN XUẤT (FLOWCHART DIAGRAM) */}
+            {/* 1. SƠ ĐỒ TRỰC QUAN CÁC CÔNG ĐOẠN SẢN XUẤT */}
             <div className="the-thong-tin" style={{ marginBottom: "24px" }}>
                 <h3 style={{ margin: "0 0 16px 0", fontSize: "15px" }}>⛓️ Sơ đồ dòng chảy công đoạn sản xuất (Line Flowchart)</h3>
                 <div style={{ 
@@ -370,14 +383,18 @@ export default function ChiTietDayChuyen() {
                     ) : (
                         bo_phan.map((bp, idx) => {
                             const isThieu = bp.trang_thai === "THIEU";
+                            const isDuThua = bp.trang_thai === "DU_THUA";
+                            const mauVien = isThieu ? "var(--red)" : (isDuThua ? "#f97316" : "var(--green)");
+                            const mauNen = isThieu ? "#fef2f2" : (isDuThua ? "#fff7ed" : "#f0fdf4");
+                            const mauChu = isThieu ? "var(--red)" : (isDuThua ? "#ea580c" : "var(--green)");
                             return (
                                 <React.Fragment key={bp.cong_doan_id}>
                                     <div style={{
                                         minWidth: "160px",
-                                        border: `2px solid ${isThieu ? "var(--red)" : "var(--green)"}`,
+                                        border: `2px solid ${mauVien}`,
                                         borderRadius: "6px",
                                         padding: "10px 14px",
-                                        backgroundColor: isThieu ? "#fef2f2" : "#f0fdf4",
+                                        backgroundColor: mauNen,
                                         textAlign: "center",
                                         boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
                                     }}>
@@ -385,13 +402,13 @@ export default function ChiTietDayChuyen() {
                                         <div style={{ 
                                             fontSize: "11px", 
                                             marginTop: "6px", 
-                                            color: isThieu ? "var(--red)" : "var(--green)",
+                                            color: mauChu,
                                             fontWeight: "bold"
                                         }}>
-                                            {bp.so_luong_da_gan} / {bp.so_luong_can} nhân sự
+                                            {bp.so_luong_da_gan} / {bp.so_luong_min !== null && bp.so_luong_max !== null ? `${bp.so_luong_min}-${bp.so_luong_max}` : bp.so_luong_can} nhân sự
                                         </div>
                                         <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>
-                                            {isThieu ? `⚠️ Thiếu ${bp.so_luong_thieu}` : "✅ Đủ nhân sự"}
+                                            {isThieu ? `⚠️ Thiếu ${bp.so_luong_thieu}` : (isDuThua ? `📈 Dư ${bp.so_luong_du}` : "✅ Đủ nhân sự")}
                                         </div>
                                     </div>
                                     {idx < bo_phan.length - 1 && (
@@ -404,9 +421,8 @@ export default function ChiTietDayChuyen() {
                 </div>
             </div>
 
-            {/* Tìm kiếm nhân sự đang có mặt trên Line */}
+            {/* Tìm kiếm nhân sự */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginBottom: "20px", flexWrap: "wrap" }}>
-                {/* Switch Tabs chế độ xem */}
                 <div style={{ display: "flex", gap: "2px", backgroundColor: "#e2e8f0", padding: "4px", borderRadius: "8px" }}>
                     <button 
                         onClick={() => setCheDoXem("CONG_DOAN")}
@@ -468,7 +484,7 @@ export default function ChiTietDayChuyen() {
                         bo_phan.map((bp) => {
                             const filteredNhanVien = locNhanVienTheoTuKhoa(bp.nhan_vien);
                             return (
-                                <div key={bp.cong_doan_id} className="the-thong-tin" style={{ borderLeft: bp.trang_thai === "THIEU" ? "5px solid var(--red)" : "5px solid var(--green)", paddingLeft: "20px" }}>
+                                <div key={bp.cong_doan_id} className="the-thong-tin" style={{ borderLeft: bp.trang_thai === "THIEU" ? "5px solid var(--red)" : (bp.trang_thai === "DU_THUA" ? "5px solid #f97316" : "5px solid var(--green)"), paddingLeft: "20px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
                                         <div>
                                             <h3 style={{ margin: 0, fontSize: "16px", color: "var(--charcoal)", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -477,6 +493,10 @@ export default function ChiTietDayChuyen() {
                                                     <span style={{ fontSize: "11px", fontWeight: "bold", background: "#fee2e2", color: "var(--red)", padding: "2px 8px", borderRadius: "999px" }}>
                                                         Thiếu {bp.so_luong_thieu} nhân sự
                                                     </span>
+                                                ) : bp.trang_thai === "DU_THUA" ? (
+                                                    <span style={{ fontSize: "11px", fontWeight: "bold", background: "#fff7ed", color: "#ea580c", padding: "2px 8px", borderRadius: "999px" }}>
+                                                        Dư {bp.so_luong_du} nhân sự
+                                                    </span>
                                                 ) : (
                                                     <span style={{ fontSize: "11px", fontWeight: "bold", background: "#dcfce7", color: "var(--green)", padding: "2px 8px", borderRadius: "999px" }}>
                                                         Đủ nhân sự
@@ -484,11 +504,11 @@ export default function ChiTietDayChuyen() {
                                                 )}
                                             </h3>
                                             <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "var(--text-muted)", display: "flex", gap: "12px", alignItems: "center" }}>
-                                                <span>Yêu cầu định biên: <strong>{bp.so_luong_can}</strong> người | Hiện tại: <strong>{bp.so_luong_da_gan}</strong> người</span>
+                                                <span>Yêu cầu định biên: <strong>{bp.so_luong_min !== null && bp.so_luong_max !== null ? `${bp.so_luong_min}-${bp.so_luong_max}` : bp.so_luong_can}</strong> người | Hiện tại: <strong>{bp.so_luong_da_gan}</strong> người</span>
                                                 {laAdminOrLeaderKhuVuc && (
                                                     <span style={{ display: "flex", gap: "8px" }}>
                                                         <button 
-                                                            onClick={() => xuLySuaDinhBien(bp)} 
+                                                            onClick={() => kichHoatSuaDinhBien(bp)} 
                                                             style={{ border: "none", background: "none", color: "var(--primary-color)", fontWeight: "bold", cursor: "pointer", padding: 0 }}
                                                         >
                                                             ✏️ Sửa định biên
@@ -504,7 +524,7 @@ export default function ChiTietDayChuyen() {
                                                 )}
                                             </p>
                                         </div>
-                                        {laAdminOrLeaderKhuVuc && bp.trang_thai === "THIEU" && hienThiGan !== bp.cong_doan_id && (
+                                        {laAdminOrLeaderKhuVuc && bp.so_luong_da_gan < bp.so_luong_max && hienThiGan !== bp.cong_doan_id && (
                                             <button
                                                 className="nut-chinh"
                                                 onClick={() => kichHoatGanNhanVien(bp.cong_doan_id)}
@@ -515,12 +535,11 @@ export default function ChiTietDayChuyen() {
                                         )}
                                     </div>
 
-                                    {/* Màn hình Gán nhân viên dạng tích chọn nhiều (Multi-select) */}
                                     {hienThiGan === bp.cong_doan_id && (
                                         <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "16px", borderRadius: "var(--radius)", marginBottom: "16px" }}>
                                             <h4 style={{ margin: "0 0 4px 0", fontSize: "13px" }}>Gán nhân viên có chứng chỉ kỹ năng phù hợp</h4>
                                             <p style={{ margin: "0 0 12px 0", fontSize: "12px", color: "var(--text-muted)" }}>
-                                                Tích chọn các nhân sự trống để phân công vào công đoạn (Đang thiếu {bp.so_luong_thieu} vị trí).
+                                                Tích chọn các nhân sự trống để phân công vào công đoạn (Tối đa gán thêm: {bp.so_luong_max - bp.so_luong_da_gan} người).
                                             </p>
 
                                             {dangTaiUngVien ? (
@@ -532,7 +551,6 @@ export default function ChiTietDayChuyen() {
                                                 </div>
                                             ) : (
                                                 <div>
-                                                    {/* Danh sách tích chọn nhiều */}
                                                     <div style={{ maxHeight: "200px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "4px", padding: "8px", background: "#ffffff", marginBottom: "12px" }}>
                                                         {danhSachUngVien.map(uv => (
                                                             <label key={uv.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 8px", borderBottom: "1px solid #f1f5f9", cursor: "pointer" }}>
@@ -548,17 +566,16 @@ export default function ChiTietDayChuyen() {
                                                         ))}
                                                     </div>
 
-                                                    {/* CẢNH BÁO NẾU CHỌN THỪA NHÂN SỰ */}
-                                                    {danhSachChonMulti.length > bp.so_luong_thieu && (
+                                                    {danhSachChonMulti.length + bp.so_luong_da_gan > bp.so_luong_max && (
                                                         <div style={{ padding: "8px 12px", backgroundColor: "#fee2e2", border: "1px solid #fca5a5", borderRadius: "4px", color: "var(--red)", fontSize: "12px", fontWeight: "bold", marginBottom: "12px" }}>
-                                                            ⚠️ Cảnh báo: Định biên công đoạn chỉ thiếu {bp.so_luong_thieu} nhân sự, nhưng bạn đang chọn {danhSachChonMulti.length} nhân sự (thừa {danhSachChonMulti.length - bp.so_luong_thieu} người)!
+                                                            ⚠️ Cảnh báo: Định biên công đoạn tối đa là {bp.so_luong_max} nhân sự, nhưng bạn đang chọn gán tổng cộng {danhSachChonMulti.length + bp.so_luong_da_gan} nhân sự!
                                                         </div>
                                                     )}
 
                                                     <div style={{ display: "flex", gap: "10px" }}>
                                                         <button 
                                                             className="nut-chinh" 
-                                                            onClick={() => xuLyGanMulti(bp.cong_doan_id, bp.so_luong_thieu)} 
+                                                            onClick={() => xuLyGanMulti(bp.cong_doan_id, bp)} 
                                                             style={{ width: "auto", padding: "8px 16px", fontSize: "13px" }}
                                                         >
                                                             Xác nhận gán ({danhSachChonMulti.length} người)
@@ -576,7 +593,6 @@ export default function ChiTietDayChuyen() {
                                         </div>
                                     )}
 
-                                    {/* Danh sách nhân viên của công đoạn */}
                                     {filteredNhanVien.length === 0 ? (
                                         <p style={{ fontStyle: "italic", color: "var(--text-muted)", fontSize: "13px", margin: 0 }}>
                                             {tuKhoaTimKiemNhanSu ? "Không tìm thấy nhân sự phù hợp." : "Chưa có nhân sự nào được phân công làm việc ở công đoạn này."}
@@ -668,6 +684,59 @@ export default function ChiTietDayChuyen() {
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* MODAL THÊM / SỬA CÔNG ĐOẠN ĐẸP MẮT (THAY THẾ WINDOW.PROMPT NATIVE) */}
+            {modalCongDoanOpen && (
+                <Modal
+                    isOpen={modalCongDoanOpen}
+                    onClose={() => setModalCongDoanOpen(false)}
+                    title={modalCongDoanCheDo === "THEM" ? "Thêm công đoạn mới" : `Sửa định biên: ${modalCongDoanTen}`}
+                    footer={
+                        <>
+                            <button type="button" className="nut-huy" onClick={() => setModalCongDoanOpen(false)}>Hủy</button>
+                            <button type="button" className="nut-chinh" onClick={xuLyLuuModalCongDoan} style={{ width: "auto", padding: "0 20px" }}>Lưu thay đổi</button>
+                        </>
+                    }
+                >
+                    <div className="nhom-o-nhap">
+                        <label>Tên công đoạn</label>
+                        <input
+                            type="text"
+                            value={modalCongDoanTen}
+                            onChange={(e) => setModalCongDoanTen(e.target.value)}
+                            disabled={modalCongDoanCheDo === "SUA"}
+                            style={{ 
+                                backgroundColor: modalCongDoanCheDo === "SUA" ? "#f1f5f9" : "#fff",
+                                color: modalCongDoanCheDo === "SUA" ? "#64748b" : "#1c2128",
+                                fontWeight: "bold"
+                            }}
+                            placeholder="Nhập tên công đoạn sản xuất..."
+                        />
+                    </div>
+                    <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
+                        <div className="nhom-o-nhap" style={{ flex: 1 }}>
+                            <label>Định biên Tối thiểu (min)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={modalCongDoanMin}
+                                onChange={(e) => setModalCongDoanMin(Number(e.target.value))}
+                                required
+                            />
+                        </div>
+                        <div className="nhom-o-nhap" style={{ flex: 1 }}>
+                            <label>Định biên Tối đa (max)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={modalCongDoanMax}
+                                onChange={(e) => setModalCongDoanMax(Number(e.target.value))}
+                                required
+                            />
+                        </div>
+                    </div>
+                </Modal>
             )}
         </div>
     );

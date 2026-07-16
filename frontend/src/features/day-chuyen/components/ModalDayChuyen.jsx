@@ -9,9 +9,8 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
     const [leaderId, setLeaderId] = useState("");
     const [trangThai, setTrangThai] = useState("HOAT_DONG");
     
-    // Mỗi công đoạn chỉ cần quản lý định biên (so_luong_can) và ID (nếu sửa)
     const [congDoan, setCongDoan] = useState([
-        { so_luong_can: 1 }
+        { so_luong_can: 1, so_luong_min: 1, so_luong_max: 1 }
     ]);
     
     const [danhSachKhuVuc, setDanhSachKhuVuc] = useState([]);
@@ -36,7 +35,7 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
                 setLeaderId("");
                 setTrangThai("HOAT_DONG");
                 setCongDoan([
-                    { so_luong_can: 1 }
+                    { so_luong_can: 1, so_luong_min: 1, so_luong_max: 1 }
                 ]);
             }
         }
@@ -61,7 +60,9 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
             if (res.success && res.data && res.data.bo_phan) {
                 const mapped = res.data.bo_phan.map(bp => ({
                     cong_doan_id: bp.cong_doan_id,
-                    so_luong_can: bp.so_luong_can
+                    so_luong_can: bp.so_luong_can,
+                    so_luong_min: bp.so_luong_min !== null ? bp.so_luong_min : bp.so_luong_can,
+                    so_luong_max: bp.so_luong_max !== null ? bp.so_luong_max : bp.so_luong_can
                 }));
                 setCongDoan(mapped);
             }
@@ -71,7 +72,7 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
     }
 
     function themCongDoan() {
-        setCongDoan([...congDoan, { so_luong_can: 1 }]);
+        setCongDoan([...congDoan, { so_luong_can: 1, so_luong_min: 1, so_luong_max: 1 }]);
     }
 
     function xoaCongDoan(index) {
@@ -100,6 +101,18 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
             return;
         }
 
+        // Kiểm tra tối đa >= tối thiểu
+        for (let i = 0; i < congDoan.length; i++) {
+            const cd = congDoan[i];
+            const min = cd.so_luong_min !== undefined ? cd.so_luong_min : cd.so_luong_can;
+            const max = cd.so_luong_max !== undefined ? cd.so_luong_max : cd.so_luong_can;
+            if (max < min) {
+                setLoi(`Công đoạn ${i + 1} có số lượng tối đa (${max}) nhỏ hơn số lượng tối thiểu (${min})`);
+                setDangXuLy(false);
+                return;
+            }
+        }
+
         try {
             const data = {
                 ten_day_chuyen: tenDayChuyen.trim(),
@@ -109,7 +122,9 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
                 bo_phan: congDoan.map((cd, idx) => ({
                     cong_doan_id: cd.cong_doan_id || null,
                     loai_bo_phan: `${tenDayChuyen.trim()} ${idx + 1}`,
-                    so_luong_can: cd.so_luong_can
+                    so_luong_can: cd.so_luong_min !== undefined ? cd.so_luong_min : cd.so_luong_can,
+                    so_luong_min: cd.so_luong_min !== undefined ? cd.so_luong_min : cd.so_luong_can,
+                    so_luong_max: cd.so_luong_max !== undefined ? cd.so_luong_max : cd.so_luong_can
                 }))
             };
             await onSave(data);
@@ -226,7 +241,7 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
                             const tenCongDoanHienThi = `${tenDayChuyen.trim() || "Dây chuyền"} ${index + 1}`;
                             return (
                                 <div key={index} style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
-                                    <div style={{ flex: 2 }}>
+                                    <div style={{ flex: 1.5 }}>
                                         <input
                                             type="text"
                                             value={tenCongDoanHienThi}
@@ -243,18 +258,31 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
                                             }}
                                         />
                                     </div>
-                                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "8px" }}>
+                                    
+                                    <div style={{ flex: 2.2, display: "flex", alignItems: "center", gap: "6px" }}>
+                                        <span style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>Min:</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={cd.so_luong_min !== undefined ? cd.so_luong_min : cd.so_luong_can}
+                                            onChange={(e) => thayDoiCongDoan(index, "so_luong_min", e.target.value)}
+                                            placeholder="Tối thiểu"
+                                            style={{ width: "65px", padding: "8px", fontSize: "14px", border: "1px solid #cbd5e0", borderRadius: "var(--radius)" }}
+                                            required
+                                        />
+                                        <span style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>Max:</span>
                                         <input
                                             type="number"
                                             min="1"
-                                            value={cd.so_luong_can}
-                                            onChange={(e) => thayDoiCongDoan(index, "so_luong_can", e.target.value)}
-                                            placeholder="Số người"
-                                            style={{ width: "100%", padding: "8px 10px", fontSize: "14px", border: "1px solid #cbd5e0", borderRadius: "var(--radius)" }}
+                                            value={cd.so_luong_max !== undefined ? cd.so_luong_max : cd.so_luong_can}
+                                            onChange={(e) => thayDoiCongDoan(index, "so_luong_max", e.target.value)}
+                                            placeholder="Tối đa"
+                                            style={{ width: "65px", padding: "8px", fontSize: "14px", border: "1px solid #cbd5e0", borderRadius: "var(--radius)" }}
                                             required
                                         />
-                                        <span style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>nhân sự</span>
+                                        <span style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>người</span>
                                     </div>
+
                                     <button
                                         type="button"
                                         onClick={() => xoaCongDoan(index)}

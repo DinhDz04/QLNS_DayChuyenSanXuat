@@ -1,100 +1,86 @@
-import * as authService from "../services/auth.service.js";
-import * as taiKhoanModel from "../models/taiKhoan.model.js";
+import AuthService from "../services/auth.service.js";
+import TaiKhoanModel from "../models/tai_khoan.model.js";
+import ApiError from "../utils/api_error.js";
 
 /**
- * Controller chỉ làm nhiệm vụ:
- * - Lấy dữ liệu từ request (req.body, req.params,...)
- * - Gọi service để xử lý
- * - Trả kết quả (response) cho client
- * Không viết câu SQL hay logic phức tạp ở đây.
+ * Controller xử lý đăng nhập, đăng ký, thông tin cá nhân
  */
+class AuthController {
+    static async login(req, res, next) {
+        try {
+            const { ten_dang_nhap, mat_khau } = req.body;
 
-// POST /api/auth/login
-export async function login(req, res) {
-    try {
-        const { ten_dang_nhap, mat_khau } = req.body;
+            if (!ten_dang_nhap || !mat_khau) {
+                throw new ApiError(400, "Vui lòng nhập tên đăng nhập và mật khẩu");
+            }
 
-        if (!ten_dang_nhap || !mat_khau) {
-            return res.status(400).json({
-                success: false,
-                message: "Vui lòng nhập tên đăng nhập và mật khẩu"
+            const ketQua = await AuthService.dangNhap(ten_dang_nhap, mat_khau);
+
+            return res.json({
+                success: true,
+                message: "Đăng nhập thành công",
+                data: ketQua
             });
+        } catch (err) {
+            next(err);
         }
-
-        const ketQua = await authService.dangNhap(ten_dang_nhap, mat_khau);
-
-        return res.json({
-            success: true,
-            message: "Đăng nhập thành công",
-            data: ketQua
-        });
-    } catch (err) {
-        return res.status(err.statusCode || 500).json({
-            success: false,
-            message: err.message || "Lỗi server"
-        });
     }
-}
 
-// POST /api/auth/register  (chỉ ADMIN được gọi - xem auth.router.js)
-export async function register(req, res) {
-    try {
-        const { ten_dang_nhap, mat_khau, email, role } = req.body;
-        const taiKhoanMoi = await authService.dangKy({ ten_dang_nhap, mat_khau, email, role });
+    static async register(req, res, next) {
+        try {
+            const { ten_dang_nhap, mat_khau, email, role } = req.body;
+            const taiKhoanMoi = await AuthService.dangKy({ ten_dang_nhap, mat_khau, email, role });
 
-        return res.status(201).json({
-            success: true,
-            message: "Tạo tài khoản thành công",
-            data: taiKhoanMoi
-        });
-    } catch (err) {
-        return res.status(err.statusCode || 500).json({
-            success: false,
-            message: err.message || "Lỗi server"
-        });
-    }
-}
-
-// GET /api/auth/me  (lấy thông tin người đang đăng nhập, dựa vào token)
-export async function layThongTinCaNhan(req, res) {
-    try {
-        // req.nguoiDung được middleware xacThucToken gắn vào trước đó
-        const taiKhoan = await taiKhoanModel.timTheoId(req.nguoiDung.id);
-
-        if (!taiKhoan) {
-            return res.status(404).json({ success: false, message: "Không tìm thấy tài khoản" });
+            return res.status(201).json({
+                success: true,
+                message: "Tạo tài khoản thành công",
+                data: taiKhoanMoi
+            });
+        } catch (err) {
+            next(err);
         }
+    }
 
-        return res.json({ success: true, data: taiKhoan });
-    } catch (err) {
-        return res.status(500).json({ success: false, message: "Lỗi server" });
+    static async layThongTinCaNhan(req, res, next) {
+        try {
+            const taiKhoan = await TaiKhoanModel.timTheoId(req.nguoiDung.id);
+
+            if (!taiKhoan) {
+                throw new ApiError(404, "Không tìm thấy tài khoản");
+            }
+
+            return res.json({
+                success: true,
+                message: "Lấy thông tin cá nhân thành công",
+                data: taiKhoan
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    static async capNhatThongTinCaNhan(req, res, next) {
+        try {
+            const { mat_khau, email, ho_ten, so_dien_thoai, gioi_tinh } = req.body;
+            const nguoiDungId = req.nguoiDung.id;
+
+            const data = await AuthService.capNhatThongTinCaNhan(nguoiDungId, {
+                mat_khau,
+                email,
+                ho_ten,
+                so_dien_thoai,
+                gioi_tinh
+            });
+
+            return res.json({
+                success: true,
+                message: "Cập nhật thông tin cá nhân thành công",
+                data
+            });
+        } catch (err) {
+            next(err);
+        }
     }
 }
 
-// PUT /api/auth/profile (Cập nhật thông tin cá nhân của tôi)
-export async function capNhatThongTinCaNhan(req, res) {
-    try {
-        const { mat_khau, email, ho_ten, so_dien_thoai, gioi_tinh } = req.body;
-        const nguoiDungId = req.nguoiDung.id;
-
-        const data = await authService.capNhatThongTinCaNhan(nguoiDungId, {
-            mat_khau,
-            email,
-            ho_ten,
-            so_dien_thoai,
-            gioi_tinh
-        });
-
-        return res.json({
-            success: true,
-            message: "Cập nhật thông tin cá nhân thành công",
-            data
-        });
-    } catch (err) {
-        return res.status(err.statusCode || 500).json({
-            success: false,
-            message: err.message || "Lỗi server"
-        });
-    }
-}
-
+export default AuthController;

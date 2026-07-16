@@ -104,6 +104,8 @@ CREATE TABLE yeu_cau_nhan_su(
  day_chuyen_id INT NOT NULL,
  cong_doan_id INT NOT NULL,
  so_luong_can INT NOT NULL,
+ so_luong_min INT NOT NULL DEFAULT 1,
+ so_luong_max INT NOT NULL DEFAULT 1,
  UNIQUE(day_chuyen_id,cong_doan_id),
  FOREIGN KEY(day_chuyen_id) REFERENCES day_chuyen(id),
  FOREIGN KEY(cong_doan_id) REFERENCES cong_doan(id)

@@ -18,7 +18,6 @@ async function main() {
 
         const skillIdMap = {};
         for (const skill of skills) {
-            // Kiểm tra xem đã có chưa
             const [rows] = await connection.query("SELECT id FROM chung_chi WHERE ten_chung_chi = ? LIMIT 1", [skill.ten]);
             if (rows.length > 0) {
                 skillIdMap[skill.ten] = rows[0].id;
@@ -52,7 +51,6 @@ async function main() {
         for (let i = 0; i < userSample.length; i++) {
             const u = userSample[i];
             
-            // A. Kiểm tra xem tài khoản đã tồn tại chưa
             const [existingTk] = await connection.query("SELECT id FROM tai_khoan WHERE ten_dang_nhap = ? LIMIT 1", [u.user]);
             let tkId;
             if (existingTk.length > 0) {
@@ -67,12 +65,10 @@ async function main() {
                 console.log(`Đã tạo tài khoản mới: ${u.user}`);
             }
 
-            // B. Kiểm tra xem nhân viên đã tồn tại chưa
             const [existingNv] = await connection.query("SELECT id FROM nhan_vien WHERE tai_khoan_id = ? LIMIT 1", [tkId]);
             let nvId;
             if (existingNv.length > 0) {
                 nvId = existingNv[0].id;
-                // Cập nhật họ tên
                 await connection.query(
                     "UPDATE nhan_vien SET ho_ten = ?, so_dien_thoai = ?, chuc_vu = 'NHAN_VIEN' WHERE id = ?",
                     [u.name, u.phone, nvId]
@@ -88,10 +84,8 @@ async function main() {
                 console.log(`Đã tạo nhân viên mới: ${u.name} (${maNV})`);
             }
 
-            // C. Ánh xạ kỹ năng (chứng chỉ) cho nhân viên
             if (u.skill) {
                 const ccId = skillIdMap[u.skill];
-                // Kiểm tra xem đã có liên kết chứng chỉ chưa
                 const [existingCcNv] = await connection.query(
                     "SELECT id FROM chung_chi_nhan_vien WHERE nhan_vien_id = ? AND chung_chi_id = ? LIMIT 1",
                     [nvId, ccId]

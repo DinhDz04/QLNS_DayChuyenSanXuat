@@ -8,8 +8,6 @@ import Dashboard from "../features/dashboard/pages/Dashboard.jsx";
 import Profile from "../features/nhan-su/pages/Profile.jsx";
 import QuanLyTaiKhoan from "../features/nhan-su/pages/QuanLyTaiKhoan.jsx";
 import QuanLyKhuVuc from "../features/khu-vuc/pages/QuanLyKhuVuc.jsx";
-import BanDoKhuVuc from "../features/khu-vuc/pages/BanDoKhuVuc.jsx";
-import BanDoTongHop from "../features/khu-vuc/pages/BanDoTongHop.jsx";
 import QuanLyDayChuyen from "../features/day-chuyen/pages/QuanLyDayChuyen.jsx";
 import ChiTietDayChuyen from "../features/day-chuyen/pages/ChiTietDayChuyen.jsx";
 
@@ -34,8 +32,6 @@ export default function AppRoutes() {
             {/* Routes dành cho ADMIN, LEADER_KHU_VUC, LEADER_LINE và MANAGER */}
             <Route element={<RouteGuard roles={["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"]}><Layout /></RouteGuard>}>
                 <Route path="/admin/khu-vuc" element={<QuanLyKhuVuc />} />
-                <Route path="/admin/khu-vuc/:id/ban-do" element={<BanDoKhuVuc />} />
-                <Route path="/admin/ban-do" element={<BanDoTongHop />} />
                 <Route path="/admin/day-chuyen" element={<QuanLyDayChuyen />} />
                 <Route path="/admin/day-chuyen/:id" element={<ChiTietDayChuyen />} />
             </Route>

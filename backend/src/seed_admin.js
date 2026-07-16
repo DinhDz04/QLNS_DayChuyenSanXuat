@@ -1,12 +1,8 @@
 /**
  * Script này dùng để tạo tài khoản ADMIN đầu tiên cho hệ thống.
- * Vì route /api/auth/register yêu cầu phải đăng nhập bằng ADMIN mới tạo được
- * tài khoản mới, nên tài khoản ADMIN đầu tiên phải được tạo bằng cách này.
  *
  * Cách chạy (đứng ở thư mục backend):
- *   node src/seedAdmin.js
- *
- * Chạy xong nhớ đổi mật khẩu mặc định bên dưới!
+ *   node src/seed_admin.js
  */
 import bcrypt from "bcrypt";
 import pool from "./config/db.js";
