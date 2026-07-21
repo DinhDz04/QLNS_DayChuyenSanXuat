@@ -21,7 +21,7 @@ class AdminController {
 
     static async taoTaiKhoan(req, res, next) {
         try {
-            const { ten_dang_nhap, mat_khau, email, role, ho_ten, so_dien_thoai, gioi_tinh, day_chuyen_id } = req.body;
+            const { ten_dang_nhap, mat_khau, email, role, ho_ten, so_dien_thoai, gioi_tinh, day_chuyen_id, ca_lam_id, dia_chi, ngay_sinh, co_xoay_ca } = req.body;
             const data = await AdminService.taoTaiKhoan({
                 ten_dang_nhap,
                 mat_khau,
@@ -30,7 +30,11 @@ class AdminController {
                 ho_ten,
                 so_dien_thoai,
                 gioi_tinh,
-                day_chuyen_id
+                day_chuyen_id,
+                ca_lam_id,
+                dia_chi,
+                ngay_sinh,
+                co_xoay_ca
             });
             return res.status(201).json({
                 success: true,
@@ -42,14 +46,12 @@ class AdminController {
         }
     }
 
-    static async nhapTaiKhoanTuExcel(req, res, next) {
+    static async nhapExcel(req, res, next) {
         try {
             if (!req.file) {
-                throw new ApiError(400, "Vui lòng chọn 1 file Excel để tải lên");
+                throw new ApiError(400, "Vui lòng tải lên tệp Excel");
             }
-
             const ketQua = await AdminService.nhapTaiKhoanTuExcel(req.file.buffer);
-
             return res.json({
                 success: true,
                 message: `Đã xử lý ${ketQua.tong_so_dong} dòng: ${ketQua.so_thanh_cong} thành công, ${ketQua.so_loi} lỗi`,
@@ -79,7 +81,7 @@ class AdminController {
     static async capNhatTaiKhoan(req, res, next) {
         try {
             const { id } = req.params;
-            const { ten_dang_nhap, ho_ten, email, so_dien_thoai, role, trang_thai, mat_khau, gioi_tinh, day_chuyen_id } = req.body;
+            const { ten_dang_nhap, ho_ten, email, so_dien_thoai, role, trang_thai, mat_khau, gioi_tinh, day_chuyen_id, ca_lam_id, dia_chi, ngay_sinh, co_xoay_ca } = req.body;
             const data = await AdminService.capNhatTaiKhoan(id, {
                 ten_dang_nhap,
                 ho_ten,
@@ -89,7 +91,11 @@ class AdminController {
                 role,
                 trang_thai,
                 gioi_tinh,
-                day_chuyen_id
+                day_chuyen_id,
+                ca_lam_id,
+                dia_chi,
+                ngay_sinh,
+                co_xoay_ca
             });
             return res.json({
                 success: true,
@@ -106,11 +112,8 @@ class AdminController {
             const { id } = req.params;
             const nguoiDungHienTaiId = req.nguoiDung.id;
             const ketQua = await AdminService.xoaTaiKhoan(id, nguoiDungHienTaiId);
-            return res.json({
-                success: true,
-                message: ketQua.message,
-                data: null
-            });
+
+            return res.json(ketQua);
         } catch (err) {
             next(err);
         }
@@ -118,58 +121,63 @@ class AdminController {
 
     static async taiFileMauExcel(req, res, next) {
         try {
-            const tieuDe = [
-                "Ho va ten",
-                "Email",
-                "Ngay sinh (dd/mm/yyyy)",
-                "Gioi tinh",
-                "Ca lam",
-                "Vai tro"
+            const wb = XLSX.utils.book_new();
+            const duLieuMau = [
+                {
+                    "Họ tên": "Nguyễn Văn A",
+                    "Giới tính": "Nam",
+                    "Số điện thoại": "0912345678",
+                    "Ngày sinh": "15/08/1998",
+                    "Email": "vana@company.com",
+                    "Địa chỉ": "123 Đường số 4, TP.HCM",
+                    "Ca làm": "Ca A",
+                    "Vai trò": "Nhân viên"
+                },
+                {
+                    "Họ tên": "Trần Thị B",
+                    "Giới tính": "Nữ",
+                    "Số điện thoại": "0987654321",
+                    "Ngày sinh": "20/12/1995",
+                    "Email": "thib@company.com",
+                    "Địa chỉ": "456 Đường số 7, Bình Dương",
+                    "Ca làm": "Ca B",
+                    "Vai trò": "Nhân viên"
+                }
             ];
 
-            const dongMauMinhHoa = [
-                ["Nguyen Van A", "vana@gmail.com", "24/05/2004", "Nam", "Ca sang", "Nhan vien"],
-                ["Tran Thi B", "thib@gmail.com", "15/11/1999", "Nu", "Ca chieu", "Nhan vien"]
-            ];
+            const ws = XLSX.utils.json_to_sheet(duLieuMau);
+            XLSX.utils.book_append_sheet(wb, ws, "DanhSachNhanSu");
 
-            const duLieu = [tieuDe, ...dongMauMinhHoa];
+            const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 
-            const sheet = XLSX.utils.aoa_to_sheet(duLieu);
-            sheet["!cols"] = [
-                { wch: 24 }, { wch: 26 }, { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
-            ];
-
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, sheet, "NhanVien");
-
-            const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-
-            res.setHeader(
-                "Content-Type",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            );
-            res.setHeader(
-                "Content-Disposition",
-                "attachment; filename=mau_import_nhan_vien.xlsx"
-            );
+            res.setHeader("Content-Disposition", "attachment; filename=nhan_su_mau.xlsx");
+            res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
             return res.send(buffer);
         } catch (err) {
-            next(new ApiError(500, "Không tạo được file mẫu, vui lòng thử lại"));
+            next(err);
         }
     }
 
-    static async nhapExcelNhanVien(req, res, next) {
+    static async layLichSuHeThong(req, res, next) {
         try {
-            if (!req.file) {
-                throw new ApiError(400, "Vui lòng chọn 1 file Excel để tải lên");
-            }
-
-            const ketQua = await AdminService.nhapTaiKhoanTuExcel(req.file.buffer);
-
+            const data = await AdminService.layLichSuHeThong();
             return res.json({
                 success: true,
-                message: `Đã xử lý ${ketQua.tong_so_dong} dòng: ${ketQua.so_thanh_cong} thành công, ${ketQua.so_loi} lỗi`,
-                data: ketQua
+                message: "Lấy lịch sử hệ thống thành công",
+                data
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    static async ganCaLamHangLoat(req, res, next) {
+        try {
+            const { tai_khoan_ids, ca_lam_id } = req.body;
+            await AdminService.ganCaLamHangLoat(tai_khoan_ids, ca_lam_id);
+            return res.json({
+                success: true,
+                message: "Đã thiết lập ca làm việc hàng loạt thành công"
             });
         } catch (err) {
             next(err);

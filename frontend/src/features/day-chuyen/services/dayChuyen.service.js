@@ -38,8 +38,18 @@ export function layChiTietDayChuyen(id, ngay) {
     return goiApi(url);
 }
 
-export function layUngVienChoBoPhan(congDoanId) {
-    return goiApi(`/day-chuyen/ung-vien?cong_doan_id=${congDoanId}`);
+export function layUngVienChoBoPhan(congDoanId, ngay, caLamId) {
+    let url = `/day-chuyen/ung-vien?cong_doan_id=${congDoanId}`;
+    if (ngay) url += `&ngay=${ngay}`;
+    if (caLamId) url += `&ca_lam_id=${caLamId}`;
+    return goiApi(url);
+}
+
+export function capNhatTrangThaiPhanCong(duLieu) {
+    return goiApi("/day-chuyen/cap-nhat-trang-thai-phan-cong", {
+        method: "POST",
+        body: JSON.stringify(duLieu)
+    });
 }
 
 export function phanCongNhanSu(duLieu) {
@@ -56,9 +66,9 @@ export function goPhanCongNhanSu(duLieu) {
     });
 }
 
-export function tuDongGanNhanSu(id, ngay) {
+export function tuDongGanNhanSu(id, ngay, caLamId) {
     return goiApi(`/day-chuyen/${id}/auto-assign`, {
         method: "POST",
-        body: JSON.stringify({ ngay })
+        body: JSON.stringify({ ngay, ca_lam_id: caLamId })
     });
 }

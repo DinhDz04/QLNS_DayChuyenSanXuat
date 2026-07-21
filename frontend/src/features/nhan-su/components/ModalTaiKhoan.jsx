@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Modal from "../../../components/ui/Modal.jsx";
 import { layDanhSachDayChuyen } from "../../day-chuyen/services/dayChuyen.service.js";
+import { layDanhSachCaLam } from "../../ca-lam/services/caLam.service.js";
 
 function layRoleTiepTheo(roleHienTai) {
     if (roleHienTai === "NHAN_VIEN") return "LEADER_LINE";
@@ -26,8 +27,13 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
     const [role, setRole] = useState("NHAN_VIEN");
     const [trangThai, setTrangThai] = useState(1);
     const [dayChuyenId, setDayChuyenId] = useState(""); // Dây chuyền cố định
+    const [caLamId, setCaLamId] = useState(""); // Ca làm việc cố định
+    const [diaChi, setDiaChi] = useState("");
+    const [ngaySinh, setNgaySinh] = useState("");
+    const [coXoayCa, setCoXoayCa] = useState(true);
     
     const [danhSachDayChuyen, setDanhSachDayChuyen] = useState([]);
+    const [danhSachCaLam, setDanhSachCaLam] = useState([]);
     const [loi, setLoi] = useState("");
     const [dangXuLy, setDangXuLy] = useState(false);
     const [hanhDongCapBac, setHanhDongCapBac] = useState("THANG_CAP");
@@ -38,6 +44,7 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
             setMatKhau("");
             setHanhDongCapBac("THANG_CAP");
             taiDayChuyenOption();
+            taiCaLamOption();
 
             if (cheDo === "SUA" && taiKhoan) {
                 setTenDangNhap(taiKhoan.ten_dang_nhap || "");
@@ -48,6 +55,10 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                 setRole(taiKhoan.role || "NHAN_VIEN");
                 setTrangThai(taiKhoan.trang_thai !== undefined ? taiKhoan.trang_thai : 1);
                 setDayChuyenId(taiKhoan.day_chuyen_id || "");
+                setCaLamId(taiKhoan.ca_lam_id || "");
+                setDiaChi(taiKhoan.dia_chi || "");
+                setNgaySinh(taiKhoan.ngay_sinh ? new Date(taiKhoan.ngay_sinh).toISOString().slice(0, 10) : "");
+                setCoXoayCa(taiKhoan.co_xoay_ca !== 0);
             } else if (cheDo === "CAP_BAC" && taiKhoan) {
                 setTenDangNhap(taiKhoan.ten_dang_nhap || "");
                 setHoTen(taiKhoan.ho_ten || "");
@@ -57,6 +68,10 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                 setRole(taiKhoan.role || "NHAN_VIEN");
                 setTrangThai(taiKhoan.trang_thai !== undefined ? taiKhoan.trang_thai : 1);
                 setDayChuyenId(taiKhoan.day_chuyen_id || "");
+                setCaLamId(taiKhoan.ca_lam_id || "");
+                setDiaChi(taiKhoan.dia_chi || "");
+                setNgaySinh(taiKhoan.ngay_sinh ? new Date(taiKhoan.ngay_sinh).toISOString().slice(0, 10) : "");
+                setCoXoayCa(taiKhoan.co_xoay_ca !== 0);
             } else {
                 setTenDangNhap("");
                 setHoTen("");
@@ -66,6 +81,10 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                 setRole("NHAN_VIEN");
                 setTrangThai(1);
                 setDayChuyenId("");
+                setCaLamId("");
+                setDiaChi("");
+                setNgaySinh("");
+                setCoXoayCa(true);
             }
         }
     }, [isOpen, cheDo, taiKhoan]);
@@ -78,6 +97,17 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
             }
         } catch (err) {
             console.error("Lỗi khi tải danh mục dây chuyền:", err);
+        }
+    }
+
+    async function taiCaLamOption() {
+        try {
+            const res = await layDanhSachCaLam();
+            if (res.success) {
+                setDanhSachCaLam(res.data.filter(c => c.loai_ca === "THUONG"));
+            }
+        } catch (err) {
+            console.error("Lỗi khi tải danh mục ca làm:", err);
         }
     }
 
@@ -103,6 +133,10 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                 await onSave({ huong: hanhDongCapBac });
                 onClose();
             } else {
+                if (cheDo === "THEM" && !ngaySinh) {
+                    throw new Error("Vui lòng điền ngày sinh để khởi tạo mật khẩu mặc định (DDMMYY).");
+                }
+
                 const data = {
                     ten_dang_nhap: tenDangNhap.trim(),
                     email: email.trim() || null,
@@ -111,16 +145,17 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                     ho_ten: hoTen.trim(),
                     so_dien_thoai: soDienThoai.trim() || null,
                     gioi_tinh: gioiTinh,
-                    day_chuyen_id: dayChuyenId ? Number(dayChuyenId) : null
+                    day_chuyen_id: dayChuyenId ? Number(dayChuyenId) : null,
+                    ca_lam_id: caLamId ? Number(caLamId) : null,
+                    dia_chi: diaChi.trim() || null,
+                    ngay_sinh: ngaySinh || null,
+                    co_xoay_ca: coXoayCa ? 1 : 0
                 };
 
                 if (cheDo === "THEM") {
-                    if (!matKhau) {
-                        setLoi("Vui lòng nhập mật khẩu cho tài khoản mới");
-                        setDangXuLy(false);
-                        return;
+                    if (matKhau) {
+                        data.mat_khau = matKhau;
                     }
-                    data.mat_khau = matKhau;
                 } else if (cheDo === "SUA" && matKhau) {
                     data.mat_khau = matKhau;
                 }
@@ -157,7 +192,7 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
     );
 
     const tieuDeModal = cheDo === "THEM" 
-        ? "Thêm tài khoản mới" 
+        ? "Thêm nhân sự mới" 
         : cheDo === "CAP_BAC" 
             ? `Thay đổi cấp bậc: ${hoTen || tenDangNhap}`
             : `Chỉnh sửa tài khoản: ${tenDangNhap}`;
@@ -210,19 +245,6 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                 ) : (
                     <>
                         <div className="nhom-o-nhap">
-                            <label htmlFor="modal_ten_dang_nhap">Tên đăng nhập *</label>
-                            <input
-                                id="modal_ten_dang_nhap"
-                                type="text"
-                                value={tenDangNhap}
-                                onChange={(e) => setTenDangNhap(e.target.value)}
-                                required
-                                disabled={cheDo === "SUA"}
-                                placeholder="Viết liền, không dấu, ví dụ: dinhlv"
-                            />
-                        </div>
-
-                        <div className="nhom-o-nhap">
                             <label htmlFor="modal_ho_ten">Họ và tên *</label>
                             <input
                                 id="modal_ho_ten"
@@ -230,19 +252,19 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                                 value={hoTen}
                                 onChange={(e) => setHoTen(e.target.value)}
                                 required
-                                placeholder="Nguyễn Văn A"
+                                placeholder="Ví dụ: Nguyễn Văn A"
                             />
                         </div>
 
                         <div className="hang-doi-nhom">
                             <div className="nhom-o-nhap" style={{ flex: 1 }}>
-                                <label htmlFor="modal_so_dien_thoai">Số điện thoại</label>
+                                <label htmlFor="modal_ngay_sinh">Ngày tháng năm sinh *</label>
                                 <input
-                                    id="modal_so_dien_thoai"
-                                    type="tel"
-                                    value={soDienThoai}
-                                    onChange={(e) => setSoDienThoai(e.target.value)}
-                                    placeholder="09XXXXXXXX"
+                                    id="modal_ngay_sinh"
+                                    type="date"
+                                    value={ngaySinh}
+                                    onChange={(e) => setNgaySinh(e.target.value)}
+                                    required
                                 />
                             </div>
 
@@ -260,6 +282,39 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                             </div>
                         </div>
 
+                        {cheDo === "THEM" && ngaySinh && (
+                            <div className="thong-bao-thanh-cong" style={{ fontSize: "12px", padding: "8px 12px", marginBottom: "16px", backgroundColor: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0" }}>
+                                💡 Mật khẩu mặc định sẽ tự động tạo từ ngày sinh: <strong>
+                                    {String(ngaySinh.split("-")[2])}{String(ngaySinh.split("-")[1])}{String(ngaySinh.split("-")[0].slice(-2))}
+                                </strong> (Định dạng DDMMYY).
+                            </div>
+                        )}
+
+                        <div className="hang-doi-nhom">
+                            <div className="nhom-o-nhap" style={{ flex: 1 }}>
+                                <label htmlFor="modal_so_dien_thoai">Số điện thoại</label>
+                                <input
+                                    id="modal_so_dien_thoai"
+                                    type="tel"
+                                    value={soDienThoai}
+                                    onChange={(e) => setSoDienThoai(e.target.value)}
+                                    placeholder="09XXXXXXXX"
+                                />
+                            </div>
+
+                            <div className="nhom-o-nhap" style={{ flex: 1 }}>
+                                <label htmlFor="modal_ten_dang_nhap">Tên đăng nhập (Mã nhân sự)</label>
+                                <input
+                                    id="modal_ten_dang_nhap"
+                                    type="text"
+                                    value={tenDangNhap}
+                                    onChange={(e) => setTenDangNhap(e.target.value)}
+                                    disabled={cheDo === "SUA"}
+                                    placeholder="Để trống sẽ tự tăng (DP_01, DP_02...)"
+                                />
+                            </div>
+                        </div>
+
                         <div className="nhom-o-nhap">
                             <label htmlFor="modal_email">Email liên kết</label>
                             <input
@@ -272,16 +327,26 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                         </div>
 
                         <div className="nhom-o-nhap">
+                            <label htmlFor="modal_dia_chi">Địa chỉ thường trú</label>
+                            <input
+                                id="modal_dia_chi"
+                                type="text"
+                                value={diaChi}
+                                onChange={(e) => setDiaChi(e.target.value)}
+                                placeholder="Số nhà, Tên đường, Quận/Huyện, Tỉnh/Thành..."
+                            />
+                        </div>
+
+                        <div className="nhom-o-nhap">
                             <label htmlFor="modal_mat_khau">
-                                Mật khẩu {cheDo === "SUA" && "(để trống nếu giữ nguyên)"} *
+                                Mật khẩu {cheDo === "SUA" ? "(để trống nếu giữ nguyên)" : "(tùy chọn)"}
                             </label>
                             <input
                                 id="modal_mat_khau"
                                 type="password"
                                 value={matKhau}
                                 onChange={(e) => setMatKhau(e.target.value)}
-                                required={cheDo === "THEM"}
-                                placeholder={cheDo === "SUA" ? "••••••••" : ""}
+                                placeholder={cheDo === "SUA" ? "••••••••" : "Để trống để tự tạo theo Ngày sinh"}
                             />
                         </div>
 
@@ -299,9 +364,22 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                                     </option>
                                 ))}
                             </select>
-                            <span style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px", display: "block" }}>
-                                * Thiết lập dây chuyền làm việc cố định (nhân viên có thể thay đổi bất cứ lúc nào).
-                            </span>
+                        </div>
+
+                        <div className="nhom-o-nhap">
+                            <label htmlFor="modal_ca_lam">Ca làm việc cố định</label>
+                            <select
+                                id="modal_ca_lam"
+                                value={caLamId}
+                                onChange={(e) => setCaLamId(e.target.value)}
+                            >
+                                <option value="">-- Chưa gán ca làm việc cố định --</option>
+                                {danhSachCaLam.map(ca => (
+                                    <option key={ca.id} value={ca.id}>
+                                        {ca.ten_ca} {ca.gio_bat_dau ? `(${ca.gio_bat_dau.slice(0, 5)} - ${ca.gio_ket_thuc.slice(0, 5)})` : ""}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
                         <div className="nhom-o-nhap">
@@ -332,6 +410,19 @@ export default function ModalTaiKhoan({ isOpen, cheDo, taiKhoan, onClose, onSave
                                 <option value={1}>Hoạt động</option>
                                 <option value={0}>Bị khóa</option>
                             </select>
+                        </div>
+
+                        <div className="nhom-o-nhap-checkbox" style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "16px" }}>
+                            <input
+                                id="modal_co_xoay_ca"
+                                type="checkbox"
+                                checked={coXoayCa}
+                                onChange={(e) => setCoXoayCa(e.target.checked)}
+                                style={{ width: "auto", margin: 0 }}
+                            />
+                            <label htmlFor="modal_co_xoay_ca" style={{ cursor: "pointer", fontWeight: "600", color: "#1e293b" }}>
+                                Cho phép tham gia xoay ca luân phiên (Lịch xoay ca)
+                            </label>
                         </div>
                     </>
                 )}

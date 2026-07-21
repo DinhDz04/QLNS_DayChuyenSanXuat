@@ -8,7 +8,8 @@ import {
     phanCongNhanSu,
     goPhanCongNhanSu,
     tuDongGanNhanSu,
-    capNhatDayChuyen
+    capNhatDayChuyen,
+    capNhatTrangThaiPhanCong
 } from "../services/dayChuyen.service.js";
 
 export default function ChiTietDayChuyen() {
@@ -18,6 +19,7 @@ export default function ChiTietDayChuyen() {
 
     const [duLieu, setDuLieu] = useState(null);
     const [ngay, setNgay] = useState(new Date().toISOString().split("T")[0]);
+    const [caLamId, setCaLamId] = useState("");
     const [dangTai, setDangTai] = useState(true);
     const [loi, setLoi] = useState("");
     const [thongBao, setThongBao] = useState("");
@@ -45,15 +47,18 @@ export default function ChiTietDayChuyen() {
 
     useEffect(() => {
         TaiChiTiet();
-    }, [id, ngay]);
+    }, [id, ngay, caLamId]);
 
     async function TaiChiTiet() {
         setDangTai(true);
         setLoi("");
         try {
-            const res = await layChiTietDayChuyen(id, ngay);
+            const res = await layChiTietDayChuyen(id, ngay, caLamId);
             if (res.success) {
                 setDuLieu(res.data);
+                if (!caLamId && res.data.ca_lam_hien_tai) {
+                    setCaLamId(res.data.ca_lam_hien_tai.id);
+                }
             }
         } catch (err) {
             setLoi(err.message || "Không thể tải chi tiết dây chuyền");
@@ -68,7 +73,7 @@ export default function ChiTietDayChuyen() {
         setDanhSachUngVien([]);
         setDangTaiUngVien(true);
         try {
-            const res = await layUngVienChoBoPhan(congDoanId);
+            const res = await layUngVienChoBoPhan(congDoanId, ngay, caLamId);
             if (res.success) {
                 setDanhSachUngVien(res.data);
             }
@@ -108,6 +113,7 @@ export default function ChiTietDayChuyen() {
                         nhan_vien_id: Number(nvId),
                         day_chuyen_id: Number(id),
                         cong_doan_id: Number(congDoanId),
+                        ca_lam_id: Number(caLamId),
                         ngay: ngay
                     })
                 )
@@ -124,10 +130,14 @@ export default function ChiTietDayChuyen() {
 
     // Tự động gán nhân sự trống
     async function xuLyAutoAssign() {
+        if (!caLamId) {
+            alert("Vui lòng chọn ca làm việc trước!");
+            return;
+        }
         setDangAutoAssign(true);
         setLoi("");
         try {
-            const res = await tuDongGanNhanSu(id, ngay);
+            const res = await tuDongGanNhanSu(id, ngay, caLamId);
             if (res.success) {
                 hienThongBao(res.message || "Đã tự động gán nhân sự thành công!");
                 TaiChiTiet();
@@ -139,6 +149,7 @@ export default function ChiTietDayChuyen() {
         }
     }
 
+    // Gỡ nhân viên khỏi phân công
     async function xuLyGo(nhanVienId, congDoanId) {
         if (!laAdminOrLeaderKhuVuc) return;
         if (window.confirm("Bạn có chắc chắn muốn gỡ nhân viên này khỏi công đoạn trong hôm nay?")) {
@@ -156,6 +167,30 @@ export default function ChiTietDayChuyen() {
                 }
             } catch (err) {
                 alert(err.message || "Gỡ nhân viên thất bại");
+            }
+        }
+    }
+
+    // Báo nghỉ hoặc Đi làm lại cho nhân sự phân công
+    async function xuLyTrangThaiPhanCong(nhanVienId, congDoanId, trangThaiMoi) {
+        if (!laAdminOrLeaderKhuVuc) return;
+        const tieuDeNghi = trangThaiMoi === "NGHI" ? "báo nghỉ" : "cho đi làm lại";
+        if (window.confirm(`Bạn có chắc chắn muốn ${tieuDeNghi} cho nhân viên này hôm nay?`)) {
+            try {
+                const res = await capNhatTrangThaiPhanCong({
+                    nhan_vien_id: Number(nhanVienId),
+                    day_chuyen_id: Number(id),
+                    cong_doan_id: Number(congDoanId),
+                    ngay: ngay,
+                    trang_thai: trangThaiMoi
+                });
+
+                if (res.success) {
+                    hienThongBao(res.message);
+                    TaiChiTiet();
+                }
+            } catch (err) {
+                alert(err.message || "Cập nhật trạng thái thất bại");
             }
         }
     }
@@ -340,6 +375,21 @@ export default function ChiTietDayChuyen() {
                             style={{ padding: "8px 12px", border: "1px solid #cbd5e0", borderRadius: "var(--radius)", fontSize: "14px", height: "38px" }}
                         />
                     </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <label style={{ fontSize: "11px", fontWeight: "bold", color: "var(--text-muted)", textTransform: "uppercase" }}>Chọn Ca Làm Việc</label>
+                        <select
+                            value={caLamId}
+                            onChange={(e) => setCaLamId(Number(e.target.value))}
+                            style={{ padding: "8px 12px", border: "1px solid #cbd5e0", borderRadius: "var(--radius)", fontSize: "14px", height: "38px", minWidth: "180px", backgroundColor: "#fff", color: "#1c2128", fontWeight: "bold" }}
+                        >
+                            {duLieu && duLieu.danh_sach_ca_lam && duLieu.danh_sach_ca_lam.map((ca) => (
+                                <option key={ca.id} value={ca.id}>
+                                    {ca.ten_ca} {ca.gio_bat_dau ? `(${ca.gio_bat_dau.slice(0, 5)} - ${ca.gio_ket_thuc.slice(0, 5)})` : ""}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                     {laAdminOrLeaderKhuVuc && (
                         <>
                             <button
@@ -477,7 +527,7 @@ export default function ChiTietDayChuyen() {
             {cheDoXem === "CONG_DOAN" ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "20px" }}>
                     {bo_phan.length === 0 ? (
-                        <div className="the-thong-tin" style={{ textAlign: "center", padding: "40px" }}>
+                        <div className="the-thong-tin" style={{ textCenter: "center", padding: "40px" }}>
                             <p style={{ fontStyle: "italic", color: "var(--text-muted)" }}>Dây chuyền này chưa được cấu hình công đoạn sản xuất nào.</p>
                         </div>
                     ) : (
@@ -539,14 +589,14 @@ export default function ChiTietDayChuyen() {
                                         <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "16px", borderRadius: "var(--radius)", marginBottom: "16px" }}>
                                             <h4 style={{ margin: "0 0 4px 0", fontSize: "13px" }}>Gán nhân viên có chứng chỉ kỹ năng phù hợp</h4>
                                             <p style={{ margin: "0 0 12px 0", fontSize: "12px", color: "var(--text-muted)" }}>
-                                                Tích chọn các nhân sự trống để phân công vào công đoạn (Tối đa gán thêm: {bp.so_luong_max - bp.so_luong_da_gan} người).
+                                                Tích chọn các nhân sự trống để phân công vào công đoạn (Tối đa gán thêm: {bp.so_luong_max - bp.so_luong_da_gan} người). Chỉ hiển thị những nhân sự hiện đang rảnh rỗi.
                                             </p>
 
                                             {dangTaiUngVien ? (
                                                 <p style={{ margin: 0, fontSize: "13px", color: "var(--text-muted)" }}>Đang quét tìm ứng viên có chứng chỉ...</p>
                                             ) : danhSachUngVien.length === 0 ? (
                                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                    <p style={{ margin: 0, fontSize: "13px", color: "var(--red)", fontWeight: "600" }}>Không tìm thấy nhân viên nào có chứng chỉ hiệu lực cho công đoạn này!</p>
+                                                    <p style={{ margin: 0, fontSize: "13px", color: "var(--red)", fontWeight: "600" }}>Không tìm thấy nhân viên nào rảnh rỗi có chứng chỉ hiệu lực cho công đoạn này!</p>
                                                     <button type="button" className="nut-huy" onClick={() => setHienThiGan(null)} style={{ padding: "4px 10px" }}>Đóng</button>
                                                 </div>
                                             ) : (
@@ -606,29 +656,69 @@ export default function ChiTietDayChuyen() {
                                                         <th>Họ và tên</th>
                                                         <th>Giới tính</th>
                                                         <th>Số điện thoại</th>
-                                                        {laAdminOrLeaderKhuVuc && <th style={{ textAlign: "center" }}>Hành động</th>}
+                                                        {laAdminOrLeaderKhuVuc && <th style={{ textAlign: "center", width: "230px" }}>Hành động</th>}
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {filteredNhanVien.map((nv) => (
-                                                        <tr key={nv.nhan_vien_id}>
-                                                            <td><strong>{nv.ma_nhan_vien}</strong></td>
-                                                            <td>{nv.ho_ten}</td>
-                                                            <td>{nv.gioi_tinh || "-"}</td>
-                                                            <td>{nv.so_dien_thoai || "-"}</td>
-                                                            {laAdminOrLeaderKhuVuc && (
-                                                                <td style={{ textAlign: "center" }}>
-                                                                    <button
-                                                                        className="nut-hanh-dong nut-xoa"
-                                                                        onClick={() => xuLyGo(nv.nhan_vien_id, bp.cong_doan_id)}
-                                                                        style={{ padding: "4px 8px", fontSize: "11px" }}
-                                                                    >
-                                                                        Gỡ khỏi công đoạn
-                                                                    </button>
+                                                    {filteredNhanVien.map((nv) => {
+                                                        const laNghi = nv.phan_cong_trang_thai === "NGHI";
+                                                        return (
+                                                            <tr key={nv.nhan_vien_id} style={{ opacity: laNghi ? 0.6 : 1, backgroundColor: laNghi ? "#f1f5f9" : "transparent" }}>
+                                                                <td><strong>{nv.ma_nhan_vien}</strong></td>
+                                                                <td>
+                                                                    {laNghi ? (
+                                                                        <>
+                                                                            <span style={{ textDecoration: "line-through", color: "#94a3b8" }}>{nv.ho_ten}</span>
+                                                                            <span style={{ background: "#fee2e2", color: "var(--red)", fontSize: "10px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px", marginLeft: "8px" }}>VẮNG MẶT</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <span>{nv.ho_ten}</span>
+                                                                    )}
                                                                 </td>
-                                                            )}
-                                                        </tr>
-                                                    ))}
+                                                                <td>{nv.gioi_tinh || "-"}</td>
+                                                                <td>{nv.so_dien_thoai || "-"}</td>
+                                                                {laAdminOrLeaderKhuVuc && (
+                                                                    <td style={{ textAlign: "center" }}>
+                                                                        {laNghi ? (
+                                                                            <>
+                                                                                <button
+                                                                                    className="nut-hanh-dong nut-sua"
+                                                                                    onClick={() => xuLyTrangThaiPhanCong(nv.nhan_vien_id, bp.cong_doan_id, "DANG_LAM")}
+                                                                                    style={{ padding: "4px 8px", fontSize: "11px", backgroundColor: "var(--green)", borderColor: "var(--green)" }}
+                                                                                >
+                                                                                    Đi làm lại
+                                                                                </button>
+                                                                                <button
+                                                                                    className="nut-hanh-dong nut-xoa"
+                                                                                    onClick={() => xuLyGo(nv.nhan_vien_id, bp.cong_doan_id)}
+                                                                                    style={{ padding: "4px 8px", fontSize: "11px", marginLeft: "6px" }}
+                                                                                >
+                                                                                    Gỡ hẳn
+                                                                                </button>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <button
+                                                                                    className="nut-hanh-dong nut-xoa"
+                                                                                    onClick={() => xuLyTrangThaiPhanCong(nv.nhan_vien_id, bp.cong_doan_id, "NGHI")}
+                                                                                    style={{ padding: "4px 8px", fontSize: "11px", backgroundColor: "#f97316", borderColor: "#f97316", color: "#fff" }}
+                                                                                >
+                                                                                    Báo nghỉ
+                                                                                </button>
+                                                                                <button
+                                                                                    className="nut-hanh-dong nut-xoa"
+                                                                                    onClick={() => xuLyGo(nv.nhan_vien_id, bp.cong_doan_id)}
+                                                                                    style={{ padding: "4px 8px", fontSize: "11px", marginLeft: "6px" }}
+                                                                                >
+                                                                                    Gỡ
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+                                                                    </td>
+                                                                )}
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -651,6 +741,7 @@ export default function ChiTietDayChuyen() {
                                     <tr>
                                         <th>Mã nhân viên</th>
                                         <th>Họ và tên</th>
+                                        <th>Trạng thái</th>
                                         <th>Công đoạn được gán</th>
                                         <th>Giới tính</th>
                                         <th>Số điện thoại</th>
@@ -658,27 +749,72 @@ export default function ChiTietDayChuyen() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {locNhanVienTheoTuKhoa(tatCaNhanVienDaGan).map((nv) => (
-                                        <tr key={nv.nhan_vien_id}>
-                                            <td><strong>{nv.ma_nhan_vien}</strong></td>
-                                            <td><strong>{nv.ho_ten}</strong></td>
-                                            <td>
-                                                <span style={{ fontWeight: "600", color: "var(--primary-color)" }}>{nv.ten_bo_phan}</span>
-                                            </td>
-                                            <td>{nv.gioi_tinh || "-"}</td>
-                                            <td>{nv.so_dien_thoai || "-"}</td>
-                                            {laAdminOrLeaderKhuVuc && (
-                                                <td style={{ textAlign: "center" }}>
-                                                    <button
-                                                        className="nut-hanh-dong nut-xoa"
-                                                        onClick={() => xuLyGo(nv.nhan_vien_id, nv.cong_doan_id)}
-                                                    >
-                                                        Gỡ khỏi line
-                                                    </button>
+                                    {locNhanVienTheoTuKhoa(tatCaNhanVienDaGan).map((nv) => {
+                                        const laNghi = nv.phan_cong_trang_thai === "NGHI";
+                                        return (
+                                            <tr key={nv.nhan_vien_id} style={{ opacity: laNghi ? 0.6 : 1, backgroundColor: laNghi ? "#f1f5f9" : "transparent" }}>
+                                                <td><strong>{nv.ma_nhan_vien}</strong></td>
+                                                <td>
+                                                    {laNghi ? (
+                                                        <span style={{ textDecoration: "line-through", color: "#94a3b8" }}>{nv.ho_ten}</span>
+                                                    ) : (
+                                                        <strong>{nv.ho_ten}</strong>
+                                                    )}
                                                 </td>
-                                            )}
-                                        </tr>
-                                    ))}
+                                                <td>
+                                                    {laNghi ? (
+                                                        <span style={{ background: "#fee2e2", color: "var(--red)", fontSize: "10px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px" }}>VẮNG MẶT</span>
+                                                    ) : (
+                                                        <span style={{ background: "#dcfce7", color: "var(--green)", fontSize: "10px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px" }}>ĐANG LÀM</span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <span style={{ fontWeight: "600", color: "var(--primary-color)" }}>{nv.ten_bo_phan}</span>
+                                                </td>
+                                                <td>{nv.gioi_tinh || "-"}</td>
+                                                <td>{nv.so_dien_thoai || "-"}</td>
+                                                {laAdminOrLeaderKhuVuc && (
+                                                    <td style={{ textAlign: "center" }}>
+                                                        {laNghi ? (
+                                                            <>
+                                                                <button
+                                                                    className="nut-hanh-dong nut-sua"
+                                                                    onClick={() => xuLyTrangThaiPhanCong(nv.nhan_vien_id, nv.cong_doan_id, "DANG_LAM")}
+                                                                    style={{ padding: "4px 8px", fontSize: "11px", backgroundColor: "var(--green)", borderColor: "var(--green)" }}
+                                                                >
+                                                                    Đi làm lại
+                                                                </button>
+                                                                <button
+                                                                    className="nut-hanh-dong nut-xoa"
+                                                                    onClick={() => xuLyGo(nv.nhan_vien_id, nv.cong_doan_id)}
+                                                                    style={{ padding: "4px 8px", fontSize: "11px", marginLeft: "6px" }}
+                                                                >
+                                                                    Gỡ hẳn
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <button
+                                                                    className="nut-hanh-dong nut-xoa"
+                                                                    onClick={() => xuLyTrangThaiPhanCong(nv.nhan_vien_id, nv.cong_doan_id, "NGHI")}
+                                                                    style={{ padding: "4px 8px", fontSize: "11px", backgroundColor: "#f97316", borderColor: "#f97316", color: "#fff" }}
+                                                                >
+                                                                    Báo nghỉ
+                                                                </button>
+                                                                <button
+                                                                    className="nut-hanh-dong nut-xoa"
+                                                                    onClick={() => xuLyGo(nv.nhan_vien_id, nv.cong_doan_id)}
+                                                                    style={{ padding: "4px 8px", fontSize: "11px", marginLeft: "6px" }}
+                                                                >
+                                                                    Gỡ
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

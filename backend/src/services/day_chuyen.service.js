@@ -89,6 +89,9 @@ class DayChuyenService {
 
     static _isCaTangCa(caLam) {
         if (!caLam) return false;
+        if (caLam.loai_ca === 'TANG_CA') return true;
+        if (caLam.loai_ca === 'THUONG') return false;
+
         const tenCa = (caLam.ten_ca || "").toLowerCase();
         if (tenCa.includes("tăng ca") || tenCa.includes("tang ca") || tenCa.includes("ot")) {
             return true;
@@ -309,7 +312,7 @@ class DayChuyenService {
         return rows;
     }
 
-    static async layChiTietDayChuyen(id, ngayYeuCau, nguoiDung) {
+    static async layChiTietDayChuyen(id, ngayYeuCau, caLamIdYeuCau, nguoiDung) {
         const ngay = ngayYeuCau || new Date().toISOString().split("T")[0];
 
         const dayChuyen = await DayChuyenService.timDayChuyenTheoId(id);
@@ -337,6 +340,19 @@ class DayChuyenService {
             }
         }
 
+        // Lấy danh sách ca làm việc để chọn hoặc mặc định
+        const [caLamList] = await pool.query("SELECT * FROM ca_lam_viec ORDER BY ten_ca ASC");
+        if (caLamList.length === 0) {
+            throw new ApiError(500, "Hệ thống chưa cấu hình ca làm việc nào!");
+        }
+
+        let caLamId = caLamIdYeuCau;
+        if (!caLamId) {
+            caLamId = caLamList[0].id;
+        }
+
+        const caLamHienTai = caLamList.find(c => c.id === Number(caLamId)) || caLamList[0];
+
         const [boPhans] = await pool.query(
             `SELECT cd.id AS cong_doan_id, cd.ten_cong_doan, yc.so_luong_can, yc.so_luong_min, yc.so_luong_max
              FROM yeu_cau_nhan_su yc
@@ -349,14 +365,15 @@ class DayChuyenService {
         const chiTietBoPhan = [];
         for (const bp of boPhans) {
             const [nhanSuDaGan] = await pool.query(
-                `SELECT pc.id AS phan_cong_id, nv.id AS nhan_vien_id, nv.ho_ten, nv.ma_nhan_vien, nv.gioi_tinh, nv.so_dien_thoai
+                `SELECT pc.id AS phan_cong_id, nv.id AS nhan_vien_id, nv.ho_ten, nv.ma_nhan_vien, nv.gioi_tinh, nv.so_dien_thoai, pc.trang_thai AS phan_cong_trang_thai
                  FROM phan_cong_nhan_su pc
                  JOIN nhan_vien nv ON pc.nhan_vien_id = nv.id
-                 WHERE pc.day_chuyen_id = ? AND pc.cong_doan_id = ? AND pc.ngay = ?`,
-                [id, bp.cong_doan_id, ngay]
+                 WHERE pc.day_chuyen_id = ? AND pc.cong_doan_id = ? AND pc.ngay = ? AND pc.ca_lam_id = ?`,
+                [id, bp.cong_doan_id, ngay, caLamHienTai.id]
             );
 
-            const soLuongDaGan = nhanSuDaGan.length;
+            // Chỉ đếm những người có trạng thái hoạt động (không phải 'NGHI')
+            const soLuongDaGan = nhanSuDaGan.filter(ns => ns.phan_cong_trang_thai !== 'NGHI').length;
             const soLuongMin = bp.so_luong_min !== null ? bp.so_luong_min : bp.so_luong_can;
             const soLuongMax = bp.so_luong_max !== null ? bp.so_luong_max : bp.so_luong_can;
             
@@ -389,11 +406,15 @@ class DayChuyenService {
         return {
             day_chuyen: dayChuyen,
             ngay: ngay,
+            ca_lam_hien_tai: caLamHienTai,
+            danh_sach_ca_lam: caLamList,
             bo_phan: chiTietBoPhan
         };
     }
 
-    static async layUngVienChoBoPhan(congDoanId) {
+    static async layUngVienChoBoPhan({ congDoanId, ngay, caLamId, nguoiDung }) {
+        const ngayDinhDang = ngay || new Date().toISOString().split("T")[0];
+
         const [cdRows] = await pool.query("SELECT ten_cong_doan FROM cong_doan WHERE id = ? LIMIT 1", [congDoanId]);
         if (cdRows.length === 0) {
             throw new ApiError(404, "Không tìm thấy bộ phận này");
@@ -402,35 +423,109 @@ class DayChuyenService {
         const tenBoPhan = cdRows[0].ten_cong_doan;
         const tenChungChiRequired = DayChuyenService._layTenChungChiTuCongDoan(tenBoPhan);
 
-        const [ccRows] = await pool.query("SELECT id FROM chung_chi WHERE ten_chung_chi = ? LIMIT 1", [tenChungChiRequired]);
-        if (ccRows.length === 0) {
-            const [allNhanVien] = await pool.query(
-                `SELECT id, ho_ten, ma_nhan_vien 
-                 FROM nhan_vien 
-                 WHERE trang_thai = 'DANG_LAM' 
-                   AND chuc_vu = 'NHAN_VIEN'
-                   AND id NOT IN (SELECT leader_id FROM day_chuyen WHERE leader_id IS NOT NULL)`
-            );
-            return allNhanVien;
+        // Lấy thông tin ca làm hiện tại để check xem có phải ca OT hay không
+        let caLam = null;
+        if (caLamId) {
+            const [clRows] = await pool.query("SELECT * FROM ca_lam_viec WHERE id = ? LIMIT 1", [caLamId]);
+            if (clRows.length > 0) caLam = clRows[0];
         }
-        const chungChiId = ccRows[0].id;
 
-        const [candidates] = await pool.query(
-            `SELECT nv.id, nv.ho_ten, nv.ma_nhan_vien, ccnv.cap_do
-             FROM nhan_vien nv
-             JOIN chung_chi_nhan_vien ccnv ON nv.id = ccnv.nhan_vien_id
-             WHERE ccnv.chung_chi_id = ? 
-               AND ccnv.trang_thai = 'HIEU_LUC' 
-               AND nv.trang_thai = 'DANG_LAM' 
-               AND nv.chuc_vu = 'NHAN_VIEN'
-               AND nv.id NOT IN (SELECT leader_id FROM day_chuyen WHERE leader_id IS NOT NULL)`,
-            [chungChiId]
-        );
+        const isOvertime = caLam ? DayChuyenService._isCaTangCa(caLam) : false;
 
+        // Lấy thông tin hồ sơ nhân sự của người đang đăng nhập (Leader)
+        let leaderNv = null;
+        if (nguoiDung && ["LEADER_KHU_VUC", "LEADER_LINE"].includes(nguoiDung.role)) {
+            const [rows] = await pool.query(
+                "SELECT id, ca_lam_id, day_chuyen_id FROM nhan_vien WHERE tai_khoan_id = ? LIMIT 1",
+                [nguoiDung.id]
+            );
+            if (rows.length > 0) leaderNv = rows[0];
+        }
+
+        // Xây dựng câu SQL chung cho ứng viên
+        let sql = `
+            SELECT DISTINCT nv.id, nv.ho_ten, nv.ma_nhan_vien, ccnv.cap_do
+            FROM nhan_vien nv
+            LEFT JOIN chung_chi_nhan_vien ccnv ON nv.id = ccnv.nhan_vien_id AND ccnv.trang_thai = 'HIEU_LUC'
+            LEFT JOIN day_chuyen dc_nv ON nv.day_chuyen_id = dc_nv.id
+            WHERE nv.trang_thai = 'DANG_LAM' 
+              AND nv.chuc_vu = 'NHAN_VIEN'
+              AND nv.id NOT IN (SELECT leader_id FROM day_chuyen WHERE leader_id IS NOT NULL)
+        `;
+        const params = [];
+
+        // Nếu công đoạn yêu cầu chứng chỉ kỹ năng
+        const [ccRows] = await pool.query("SELECT id FROM chung_chi WHERE ten_chung_chi = ? LIMIT 1", [tenChungChiRequired]);
+        if (ccRows.length > 0) {
+            sql += ` AND ccnv.chung_chi_id = ?`;
+            params.push(ccRows[0].id);
+        }
+
+        // Lọc theo Ca làm việc
+        if (isOvertime) {
+            // Tăng ca: Chỉ hiển thị những nhân viên có đăng ký tăng ca đã duyệt cho ca này trong ngày hôm đó
+            sql += `
+                AND nv.id IN (
+                    SELECT nhan_vien_id FROM dang_ky_tang_ca 
+                    WHERE ca_lam_id = ? AND ngay = ? AND trang_thai = 'DA_DUYET'
+                )
+            `;
+            params.push(caLamId, ngayDinhDang);
+        } else {
+            const role = nguoiDung?.role || "NHAN_VIEN";
+            const laQuyenCao = ["ADMIN", "MANAGER"].includes(role);
+            
+            if (laQuyenCao) {
+                if (caLamId) {
+                    sql += ` AND nv.ca_lam_id = ?`;
+                    params.push(caLamId);
+                }
+            } else if (leaderNv) {
+                // Leader chỉ nhìn thấy nhân viên thuộc ca của chính Leader
+                sql += ` AND nv.ca_lam_id = ?`;
+                params.push(leaderNv.ca_lam_id);
+            }
+        }
+
+        // Lọc theo khu vực quản lý hoặc dây chuyền quản lý
+        if (nguoiDung) {
+            if (nguoiDung.role === "LEADER_KHU_VUC" && leaderNv) {
+                // Leader khu vực chỉ xem được nhân viên của KHU VỰC MÌNH quản lý (hoặc nhân sự tự do chưa gán line)
+                const [kvRows] = await pool.query("SELECT id FROM khu_vuc WHERE leader_id = ?", [leaderNv.id]);
+                if (kvRows.length > 0) {
+                    const kvIds = kvRows.map(k => k.id);
+                    sql += ` AND (dc_nv.khu_vuc_id IN (?) OR nv.day_chuyen_id IS NULL)`;
+                    params.push(kvIds);
+                } else {
+                    sql += ` AND 1=0`; // Không quản lý khu vực nào thì không thấy ai
+                }
+            } else if (nguoiDung.role === "LEADER_LINE" && leaderNv) {
+                // Leader line chỉ xem được nhân viên thuộc LINE CỦA MÌNH quản lý
+                if (leaderNv.day_chuyen_id) {
+                    sql += ` AND nv.day_chuyen_id = ?`;
+                    params.push(leaderNv.day_chuyen_id);
+                } else {
+                    sql += ` AND 1=0`; // Chưa quản lý line nào thì không thấy ai
+                }
+            }
+        }
+
+        // Loại bỏ những nhân viên đã bị phân công làm việc ở dây chuyền/ca làm khác trong hôm đó (tránh trùng lịch)
+        if (caLamId) {
+            sql += `
+                AND nv.id NOT IN (
+                    SELECT nhan_vien_id FROM phan_cong_nhan_su 
+                    WHERE ngay = ? AND ca_lam_id = ? AND trang_thai != 'NGHI'
+                )
+            `;
+            params.push(ngayDinhDang, caLamId);
+        }
+
+        const [candidates] = await pool.query(sql, params);
         return candidates;
     }
 
-    static async phanCongNhanSu({ nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay }) {
+    static async phanCongNhanSu({ nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, nguoiDung }) {
         const ngayDinhDang = ngay || new Date().toISOString().split("T")[0];
 
         let caLamId = ca_lam_id;
@@ -454,19 +549,26 @@ class DayChuyenService {
         const isOvertime = DayChuyenService._isCaTangCa(caLam);
 
         // Bổ sung: Kiểm tra xem nhân sự có đang là Leader hay không
-        const [nvCheckRows] = await pool.query("SELECT chuc_vu FROM nhan_vien WHERE id = ? LIMIT 1", [nhan_vien_id]);
+        const [nvCheckRows] = await pool.query("SELECT chuc_vu, ca_lam_id, day_chuyen_id FROM nhan_vien WHERE id = ? LIMIT 1", [nhan_vien_id]);
         if (nvCheckRows.length === 0) {
             throw new ApiError(404, "Không tìm thấy nhân viên!");
         }
-        const nvChucVu = nvCheckRows[0].chuc_vu;
-        if (nvChucVu === "LEADER_LINE" || nvChucVu === "LEADER_KHU_VUC" || nvChucVu === "ADMIN") {
-            throw new ApiError(400, `Lỗi: Không thể phân công người có chức vụ ${nvChucVu} làm nhân viên công đoạn!`);
+        const nv = nvCheckRows[0];
+        if (nv.chuc_vu === "LEADER_LINE" || nv.chuc_vu === "LEADER_KHU_VUC" || nv.chuc_vu === "ADMIN") {
+            throw new ApiError(400, `Lỗi: Không thể phân công người có chức vụ ${nv.chuc_vu} làm nhân viên công đoạn!`);
         }
 
         // Kiểm tra xem nhân viên này có đang là Leader của bất kỳ dây chuyền nào không
         const [dcCheckRows] = await pool.query("SELECT id FROM day_chuyen WHERE leader_id = ? LIMIT 1", [nhan_vien_id]);
         if (dcCheckRows.length > 0) {
             throw new ApiError(400, "Lỗi: Nhân viên này đang được phân công làm Leader dây chuyền, không thể gán làm nhân viên công đoạn!");
+        }
+
+        // Nếu là ca thường, kiểm tra xem nhân viên có thuộc ca cố định này không (Quyền ADMIN / MANAGER được bỏ qua ràng buộc ca)
+        const role = nguoiDung?.role || "NHAN_VIEN";
+        const laQuyenCao = ["ADMIN", "MANAGER"].includes(role);
+        if (!isOvertime && nv.ca_lam_id !== caLamId && !laQuyenCao) {
+            throw new ApiError(400, "Lỗi: Nhân viên này có Ca làm cố định khác với ca đang gán!");
         }
 
         if (isOvertime) {
@@ -500,7 +602,7 @@ class DayChuyenService {
         }
 
         const [trungPhanCong] = await pool.query(
-            "SELECT id FROM phan_cong_nhan_su WHERE nhan_vien_id = ? AND ngay = ? AND ca_lam_id = ?",
+            "SELECT id FROM phan_cong_nhan_su WHERE nhan_vien_id = ? AND ngay = ? AND ca_lam_id = ? AND trang_thai != 'NGHI'",
             [nhan_vien_id, ngayDinhDang, caLamId]
         );
 
@@ -532,18 +634,85 @@ class DayChuyenService {
             [nhan_vien_id, day_chuyen_id, cong_doan_id, caLamId, ngayDinhDang]
         );
 
+        await pool.query(
+            `INSERT INTO nhat_ky_phan_cong (nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, hanh_dong)
+             VALUES (?, ?, ?, ?, ?, 'GAN')`,
+            [nhan_vien_id, day_chuyen_id, cong_doan_id, caLamId, ngayDinhDang]
+        );
+
+        // Nếu gán vào dây chuyền khác với dây chuyền cố định, ghi nhận lịch sử điều động
+        if (nv.day_chuyen_id !== Number(day_chuyen_id)) {
+            await pool.query(
+                `INSERT INTO lich_su_dieu_dong (nhan_vien_id, tu_day_chuyen_id, den_day_chuyen_id, cong_doan_moi_id, ly_do)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [nhan_vien_id, nv.day_chuyen_id, day_chuyen_id, cong_doan_id, 'Điều động làm việc ngày (Hôm nay)']
+            );
+        }
+
         return { success: true, message: "Phân công nhân sự thành công" };
     }
 
     static async goPhanCongNhanSu({ nhan_vien_id, day_chuyen_id, cong_doan_id, ngay }) {
         const ngayDinhDang = ngay || new Date().toISOString().split("T")[0];
 
+        const [rows] = await pool.query(
+            "SELECT ca_lam_id FROM phan_cong_nhan_su WHERE nhan_vien_id = ? AND day_chuyen_id = ? AND cong_doan_id = ? AND ngay = ? LIMIT 1",
+            [nhan_vien_id, day_chuyen_id, cong_doan_id, ngayDinhDang]
+        );
+        let caLamId = null;
+        if (rows.length > 0) {
+            caLamId = rows[0].ca_lam_id;
+        }
+
         await pool.query(
             "DELETE FROM phan_cong_nhan_su WHERE nhan_vien_id = ? AND day_chuyen_id = ? AND cong_doan_id = ? AND ngay = ?",
             [nhan_vien_id, day_chuyen_id, cong_doan_id, ngayDinhDang]
         );
 
+        if (caLamId) {
+            await pool.query(
+                `INSERT INTO nhat_ky_phan_cong (nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, hanh_dong)
+                 VALUES (?, ?, ?, ?, ?, 'GO')`,
+                [nhan_vien_id, day_chuyen_id, cong_doan_id, caLamId, ngayDinhDang]
+            );
+        }
+
         return { success: true, message: "Đã gỡ nhân sự khỏi bộ phận" };
+    }
+
+    static async capNhatTrangThaiPhanCong({ nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, trang_thai }) {
+        const ngayDinhDang = ngay || new Date().toISOString().split("T")[0];
+        if (!['DANG_LAM', 'NGHI'].includes(trang_thai)) {
+            throw new ApiError(400, "Trạng thái phân công không hợp lệ");
+        }
+
+        const [rows] = await pool.query(
+            "SELECT ca_lam_id FROM phan_cong_nhan_su WHERE nhan_vien_id = ? AND day_chuyen_id = ? AND cong_doan_id = ? AND ngay = ? LIMIT 1",
+            [nhan_vien_id, day_chuyen_id, cong_doan_id, ngayDinhDang]
+        );
+        let caLamId = null;
+        if (rows.length > 0) {
+            caLamId = rows[0].ca_lam_id;
+        }
+
+        await pool.query(
+            "UPDATE phan_cong_nhan_su SET trang_thai = ? WHERE nhan_vien_id = ? AND day_chuyen_id = ? AND cong_doan_id = ? AND ngay = ?",
+            [trang_thai, nhan_vien_id, day_chuyen_id, cong_doan_id, ngayDinhDang]
+        );
+
+        if (caLamId) {
+            const hanhDong = trang_thai === 'NGHI' ? 'NGHI' : 'DI_LAM_LAI';
+            await pool.query(
+                `INSERT INTO nhat_ky_phan_cong (nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, hanh_dong)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [nhan_vien_id, day_chuyen_id, cong_doan_id, caLamId, ngayDinhDang, hanhDong]
+            );
+        }
+
+        return { 
+            success: true, 
+            message: `Đã cập nhật trạng thái nhân sự thành ${trang_thai === 'DANG_LAM' ? 'Đi làm' : 'Vắng mặt/Nghỉ'}` 
+        };
     }
 
     static async tuDongGanNhanSu({ day_chuyen_id, ngay, ca_lam_id }) {
@@ -600,11 +769,12 @@ class DayChuyenService {
                  FROM nhan_vien nv
                  WHERE nv.trang_thai = 'DANG_LAM' 
                    AND nv.chuc_vu = 'NHAN_VIEN'
+                   AND nv.ca_lam_id = ?
                    AND nv.id NOT IN (SELECT leader_id FROM day_chuyen WHERE leader_id IS NOT NULL)
                    AND nv.id NOT IN (
                        SELECT nhan_vien_id FROM phan_cong_nhan_su WHERE ngay = ? AND ca_lam_id = ?
                    )`,
-                [ngayDinhDang, caLamId]
+                [caLamId, ngayDinhDang, caLamId]
             );
             nhanVienRanh = rows;
         }
@@ -641,6 +811,11 @@ class DayChuyenService {
                          VALUES (?, ?, ?, ?, ?, 'DANG_LAM')`,
                         [cand.id, day_chuyen_id, bp.cong_doan_id, caLamId, ngayDinhDang]
                     );
+                    await pool.query(
+                        `INSERT INTO nhat_ky_phan_cong (nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, hanh_dong)
+                         VALUES (?, ?, ?, ?, ?, 'GAN')`,
+                        [cand.id, day_chuyen_id, bp.cong_doan_id, caLamId, ngayDinhDang]
+                    );
                     danhSachGanThanhCong.push({
                         nhan_vien_id: cand.id,
                         ma_nhan_vien: cand.ma_nhan_vien,
@@ -669,6 +844,11 @@ class DayChuyenService {
                     await pool.query(
                         `INSERT INTO phan_cong_nhan_su (nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, trang_thai)
                          VALUES (?, ?, ?, ?, ?, 'DANG_LAM')`,
+                        [cand.id, day_chuyen_id, bp.cong_doan_id, caLamId, ngayDinhDang]
+                    );
+                    await pool.query(
+                        `INSERT INTO nhat_ky_phan_cong (nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, hanh_dong)
+                         VALUES (?, ?, ?, ?, ?, 'GAN')`,
                         [cand.id, day_chuyen_id, bp.cong_doan_id, caLamId, ngayDinhDang]
                     );
                     danhSachGanThanhCong.push({

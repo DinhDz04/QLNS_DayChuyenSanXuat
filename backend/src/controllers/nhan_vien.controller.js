@@ -33,6 +33,20 @@ class NhanVienController {
         }
     }
 
+    static async layLichSuPhanCong(req, res, next) {
+        try {
+            const { id } = req.params;
+            const data = await NhanVienService.layLichSuPhanCong(id);
+            return res.json({
+                success: true,
+                message: "Lấy lịch sử phân công nhân viên thành công",
+                data
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     static async capNhatNhanVien(req, res, next) {
         try {
             const { id } = req.params;

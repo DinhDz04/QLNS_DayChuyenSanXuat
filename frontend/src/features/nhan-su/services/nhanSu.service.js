@@ -31,6 +31,21 @@ export function xoaTaiKhoanAdmin(id) {
     });
 }
 
+export function layLichSuPhanCong(nhanVienId) {
+    return goiApi(`/nhan-vien/${nhanVienId}/lich-su`);
+}
+
+export function layLichSuHeThong() {
+    return goiApi("/admin/lich-su");
+}
+
+export function ganCaLamHangLoat(taiKhoanIds, caLamId) {
+    return goiApi("/admin/tai-khoan/batch-ca-lam", {
+        method: "POST",
+        body: JSON.stringify({ tai_khoan_ids: taiKhoanIds, ca_lam_id: caLamId })
+    });
+}
+
 export function nhapTaiKhoanTuExcel(file) {
     const formData = new FormData();
     formData.append("file", file);

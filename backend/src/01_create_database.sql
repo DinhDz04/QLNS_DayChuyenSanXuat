@@ -85,7 +85,8 @@ CREATE TABLE ca_lam_viec(
  id INT AUTO_INCREMENT PRIMARY KEY,
  ten_ca VARCHAR(50),
  gio_bat_dau TIME,
- gio_ket_thuc TIME
+ gio_ket_thuc TIME,
+ loai_ca ENUM('THUONG', 'TANG_CA') DEFAULT 'THUONG'
 );
 
 CREATE TABLE dang_ky_tang_ca(
@@ -150,4 +151,19 @@ CREATE TABLE thong_bao(
  da_doc BOOLEAN DEFAULT FALSE,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(nguoi_nhan_id) REFERENCES nhan_vien(id)
+);
+
+CREATE TABLE nhat_ky_phan_cong(
+ id INT AUTO_INCREMENT PRIMARY KEY,
+ nhan_vien_id INT NOT NULL,
+ day_chuyen_id INT NOT NULL,
+ cong_doan_id INT NOT NULL,
+ ca_lam_id INT NOT NULL,
+ ngay DATE NOT NULL,
+ hanh_dong VARCHAR(20) NOT NULL, -- 'GAN', 'GO', 'NGHI', 'DI_LAM_LAI'
+ thoi_gian TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(nhan_vien_id) REFERENCES nhan_vien(id) ON DELETE CASCADE,
+ FOREIGN KEY(day_chuyen_id) REFERENCES day_chuyen(id) ON DELETE CASCADE,
+ FOREIGN KEY(cong_doan_id) REFERENCES cong_doan(id) ON DELETE CASCADE,
+ FOREIGN KEY(ca_lam_id) REFERENCES ca_lam_viec(id) ON DELETE CASCADE
 );

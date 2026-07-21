@@ -12,6 +12,10 @@ class NhanVienService {
         return await NhanVienModel.layChungChiNhanVien(nhanVienId);
     }
 
+    static async layLichSuPhanCong(nhanVienId) {
+        return await NhanVienModel.layLichSuPhanCong(nhanVienId);
+    }
+
     static async capNhatNhanVien(id, duLieu) {
         return await NhanVienModel.capNhatNhanVien(id, duLieu);
     }

@@ -11,12 +11,6 @@ const MENU_ITEMS = [
         choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "NHAN_VIEN", "MANAGER"]
     },
     {
-        tieuDe: "Bản đồ nhà máy",
-        icon: "🗺️",
-        duongDan: "/admin/ban-do",
-        choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"]
-    },
-    {
         tieuDe: "Quản lý tài khoản",
         icon: "👥",
         duongDan: "/admin/tai-khoan",
@@ -33,6 +27,18 @@ const MENU_ITEMS = [
         icon: "⛓️",
         duongDan: "/admin/day-chuyen",
         choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"]
+    },
+    {
+        tieuDe: "Quản lý Lịch làm",
+        icon: "⏰",
+        duongDan: "/admin/ca-lam",
+        choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"]
+    },
+    {
+        tieuDe: "Nhật ký hệ thống",
+        icon: "📜",
+        duongDan: "/admin/lich-su",
+        choPhep: ["ADMIN", "MANAGER"]
     }
 ];
 

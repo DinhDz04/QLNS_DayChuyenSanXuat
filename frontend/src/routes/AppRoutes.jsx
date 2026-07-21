@@ -10,6 +10,8 @@ import QuanLyTaiKhoan from "../features/nhan-su/pages/QuanLyTaiKhoan.jsx";
 import QuanLyKhuVuc from "../features/khu-vuc/pages/QuanLyKhuVuc.jsx";
 import QuanLyDayChuyen from "../features/day-chuyen/pages/QuanLyDayChuyen.jsx";
 import ChiTietDayChuyen from "../features/day-chuyen/pages/ChiTietDayChuyen.jsx";
+import QuanLyCaLam from "../features/ca-lam/pages/QuanLyCaLam.jsx";
+import LichSuHeThong from "../features/nhan-su/pages/LichSuHeThong.jsx";
 
 export default function AppRoutes() {
     return (
@@ -29,11 +31,17 @@ export default function AppRoutes() {
                 <Route path="/admin/tai-khoan" element={<QuanLyTaiKhoan />} />
             </Route>
 
+            {/* Routes dành cho ADMIN và MANAGER */}
+            <Route element={<RouteGuard roles={["ADMIN", "MANAGER"]}><Layout /></RouteGuard>}>
+                <Route path="/admin/lich-su" element={<LichSuHeThong />} />
+            </Route>
+
             {/* Routes dành cho ADMIN, LEADER_KHU_VUC, LEADER_LINE và MANAGER */}
             <Route element={<RouteGuard roles={["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"]}><Layout /></RouteGuard>}>
                 <Route path="/admin/khu-vuc" element={<QuanLyKhuVuc />} />
                 <Route path="/admin/day-chuyen" element={<QuanLyDayChuyen />} />
                 <Route path="/admin/day-chuyen/:id" element={<ChiTietDayChuyen />} />
+                <Route path="/admin/ca-lam" element={<QuanLyCaLam />} />
             </Route>
 
             {/* Fallback */}

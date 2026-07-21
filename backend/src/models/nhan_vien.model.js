@@ -47,14 +47,93 @@ class NhanVienModel {
         return rows;
     }
 
-    static async capNhatNhanVien(id, { ho_ten, gioi_tinh, so_dien_thoai, day_chuyen_id, chuc_vu, trang_thai }) {
-        const [result] = await pool.query(
-            `UPDATE nhan_vien 
-             SET ho_ten = ?, gioi_tinh = ?, so_dien_thoai = ?, day_chuyen_id = ?, chuc_vu = ?, trang_thai = ?
-             WHERE id = ?`,
-            [ho_ten, gioi_tinh, so_dien_thoai || null, day_chuyen_id || null, chuc_vu, trang_thai, id]
+    static async layLichSuPhanCong(nhanVienId) {
+        const [rows] = await pool.query(
+            `SELECT 
+                'PHAN_CONG' AS loai,
+                nk.ngay AS ngay,
+                nk.hanh_dong AS hanh_dong,
+                nk.thoi_gian AS thoi_gian,
+                dc.ten_day_chuyen AS ten_day_chuyen,
+                cd.ten_cong_doan AS ten_cong_doan,
+                cl.ten_ca AS ten_ca,
+                NULL AS tu_day_chuyen,
+                NULL AS den_day_chuyen,
+                NULL AS cong_doan_cu,
+                NULL AS cong_doan_moi,
+                NULL AS ly_do
+             FROM nhat_ky_phan_cong nk
+             JOIN day_chuyen dc ON nk.day_chuyen_id = dc.id
+             JOIN cong_doan cd ON nk.cong_doan_id = cd.id
+             LEFT JOIN ca_lam_viec cl ON nk.ca_lam_id = cl.id
+             WHERE nk.nhan_vien_id = ?
+             
+             UNION ALL
+             
+             SELECT 
+                'DIEU_DONG' AS loai,
+                NULL AS ngay,
+                'DIEU_DONG' AS hanh_dong,
+                ls.thoi_gian AS thoi_gian,
+                NULL AS ten_day_chuyen,
+                NULL AS ten_cong_doan,
+                NULL AS ten_ca,
+                dc_tu.ten_day_chuyen AS tu_day_chuyen,
+                dc_den.ten_day_chuyen AS den_day_chuyen,
+                cd_cu.ten_cong_doan AS cong_doan_cu,
+                cd_moi.ten_cong_doan AS cong_doan_moi,
+                ls.ly_do AS ly_do
+             FROM lich_su_dieu_dong ls
+             LEFT JOIN day_chuyen dc_tu ON ls.tu_day_chuyen_id = dc_tu.id
+             LEFT JOIN day_chuyen dc_den ON ls.den_day_chuyen_id = dc_den.id
+             LEFT JOIN cong_doan cd_cu ON ls.cong_doan_cu_id = cd_cu.id
+             LEFT JOIN cong_doan cd_moi ON ls.cong_doan_moi_id = cd_moi.id
+             WHERE ls.nhan_vien_id = ?
+             
+             ORDER BY thoi_gian DESC`,
+            [nhanVienId, nhanVienId]
         );
-        return result.affectedRows > 0;
+        return rows;
+    }
+
+    static async capNhatNhanVien(id, { ho_ten, gioi_tinh, so_dien_thoai, day_chuyen_id, chuc_vu, trang_thai }) {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            // Lấy day_chuyen_id hiện tại để kiểm tra thay đổi
+            const [currentNv] = await connection.query(
+                "SELECT day_chuyen_id FROM nhan_vien WHERE id = ?",
+                [id]
+            );
+
+            const oldDayChuyenId = currentNv.length > 0 ? currentNv[0].day_chuyen_id : null;
+            const newDayChuyenId = day_chuyen_id ? Number(day_chuyen_id) : null;
+
+            const [result] = await connection.query(
+                `UPDATE nhan_vien 
+                 SET ho_ten = ?, gioi_tinh = ?, so_dien_thoai = ?, day_chuyen_id = ?, chuc_vu = ?, trang_thai = ?
+                 WHERE id = ?`,
+                [ho_ten, gioi_tinh, so_dien_thoai || null, day_chuyen_id || null, chuc_vu, trang_thai, id]
+            );
+
+            // Nếu thay đổi dây chuyền cố định, ghi vào lịch sử điều động
+            if (result.affectedRows > 0 && oldDayChuyenId !== newDayChuyenId) {
+                await connection.query(
+                    `INSERT INTO lich_su_dieu_dong (nhan_vien_id, tu_day_chuyen_id, den_day_chuyen_id, ly_do)
+                     VALUES (?, ?, ?, ?)`,
+                    [id, oldDayChuyenId, newDayChuyenId, 'Thay đổi dây chuyền cố định (Admin)']
+                );
+            }
+
+            await connection.commit();
+            return result.affectedRows > 0;
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
+            connection.release();
+        }
     }
 
     static async xoaNhanVien(id) {

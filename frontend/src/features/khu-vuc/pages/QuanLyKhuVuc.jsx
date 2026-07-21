@@ -55,14 +55,13 @@ export default function QuanLyKhuVuc() {
                                 <th>Khách hàng liên kết</th>
                                 <th>Leader phụ trách</th>
                                 <th>Mã số nhân viên</th>
-                                <th style={{ textAlign: "center" }}>Sa bàn</th>
                                 {laAdmin && <th style={{ textAlign: "center" }}>Hành động</th>}
                             </tr>
                         </thead>
                         <tbody>
                             {danhSach.length === 0 ? (
                                 <tr>
-                                    <td colSpan={laAdmin ? 7 : 6} style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}>
+                                    <td colSpan={laAdmin ? 6 : 5} style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}>
                                         Chưa có khu vực nào được tạo
                                     </td>
                                 </tr>
@@ -80,22 +79,6 @@ export default function QuanLyKhuVuc() {
                                             )}
                                         </td>
                                         <td>{kv.ma_leader || "-"}</td>
-                                        <td style={{ textAlign: "center" }}>
-                                            <button
-                                                className="nut-hanh-dong"
-                                                onClick={() => navigate(`/admin/khu-vuc/${kv.id}/ban-do`)}
-                                                style={{ 
-                                                    backgroundColor: "#e0f2fe", 
-                                                    color: "#0369a1", 
-                                                    border: "1px solid #bae6fd", 
-                                                    fontWeight: "bold",
-                                                    padding: "6px 12px",
-                                                    fontSize: "12px"
-                                                }}
-                                            >
-                                                🗺️ Bản đồ
-                                            </button>
-                                        </td>
                                         {laAdmin && (
                                             <td style={{ textAlign: "center" }}>
                                                 <div className="nhom-nut-hanh-dong">

@@ -9,6 +9,7 @@ router.use(xacThucToken);
 // Tất cả tài khoản đã đăng nhập đều xem được danh sách và chứng chỉ nhân viên
 router.get("/", NhanVienController.layDanhSachNhanVien);
 router.get("/:id/chung-chi", NhanVienController.layChungChiNhanVien);
+router.get("/:id/lich-su", NhanVienController.layLichSuPhanCong);
 
 // Chỉ ADMIN mới được cập nhật hoặc xóa nhân viên
 router.put("/:id", phanQuyen("ADMIN"), NhanVienController.capNhatNhanVien);
