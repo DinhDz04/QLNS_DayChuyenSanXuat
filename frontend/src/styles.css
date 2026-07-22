@@ -184,13 +184,21 @@ h1, h2, h3, .nhan-tieu-de {
 .nut-chinh:disabled { opacity: .6; cursor: not-allowed; }
 
 .thong-bao-loi {
-    background: #fdecea;
-    color: var(--red);
-    border: 1px solid #f3c2ba;
-    border-radius: var(--radius);
-    padding: 10px 12px;
-    font-size: 13px;
-    margin-bottom: 16px;
+    background: #fff5f5;
+    color: #c53030;
+    border-left: 4px solid #f56565;
+    border-top: 1px solid #fed7d7;
+    border-right: 1px solid #fed7d7;
+    border-bottom: 1px solid #fed7d7;
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 14px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    animation: slideInUp 0.3s ease-out;
 }
 
 .ghi-chu-demo {
@@ -375,14 +383,22 @@ h1, h2, h3, .nhan-tieu-de {
 }
 
 .thong-bao-thanh-cong {
-    background: #e6f7ed;
-    color: var(--green);
-    border: 1px solid #b7ebd0;
-    border-radius: var(--radius);
-    padding: 12px 16px;
+    background: #f0fff4;
+    color: #22543d;
+    border-left: 4px solid #48bb78;
+    border-top: 1px solid #c6f6d5;
+    border-right: 1px solid #c6f6d5;
+    border-bottom: 1px solid #c6f6d5;
+    border-radius: 8px;
+    padding: 14px 18px;
     font-size: 14px;
     margin-bottom: 20px;
     font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    animation: slideInUp 0.3s ease-out;
 }
 
 /* Bảng dữ liệu */
@@ -892,6 +908,128 @@ h1, h2, h3, .nhan-tieu-de {
     flex-grow: 1;
     overflow-y: auto;
     background: var(--steel-light);
+}
+
+/* =========================================================
+   RESPONSIVE DESIGN SYSTEM (MOBILE & TABLET ADAPTATION)
+   ========================================================= */
+@media (max-width: 768px) {
+    .bo-cuc-he-thong {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+    }
+    
+    .thanh-ben-trai {
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .sidebar-header {
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .thong-tin-nguoi-dung-sidebar {
+        padding: 8px 16px;
+    }
+    
+    .danh-sach-menu {
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 8px;
+        gap: 6px;
+        scrollbar-width: none;
+    }
+    .danh-sach-menu::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .nut-menu {
+        width: auto;
+        white-space: nowrap;
+        padding: 8px 12px;
+        font-size: 13px;
+        justify-content: center;
+    }
+    
+    .sidebar-footer {
+        display: none;
+    }
+    
+    .phong-chinh {
+        height: auto;
+        overflow: visible;
+    }
+    
+    .thanh-ngang-dinh {
+        height: auto;
+        padding: 12px 16px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .navbar-phai {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .noi-dung-cu-the {
+        overflow-y: visible;
+    }
+    
+    .noi-dung-chinh {
+        padding: 16px 12px;
+    }
+    
+    .admin-header-bar {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+    }
+    
+    .admin-header-bar div {
+        width: 100%;
+    }
+    
+    .admin-header-bar input, 
+    .admin-header-bar select, 
+    .admin-header-bar button {
+        width: 100% !important;
+        align-self: stretch !important;
+    }
+    
+    .bang-du-lieu-wrapper {
+        border-radius: 8px;
+        margin-bottom: 16px;
+    }
+    
+    .bang-du-lieu th, 
+    .bang-du-lieu td {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    
+    .luoi-quyen {
+        grid-template-columns: 1fr;
+    }
+    
+    .modal-content {
+        width: 95% !important;
+        margin: 20px auto !important;
+        max-height: 90vh !important;
+    }
+    
+    .nhom-o-nhap input, 
+    .nhom-o-nhap select {
+        font-size: 14px;
+        padding: 10px;
+    }
 }
 
 

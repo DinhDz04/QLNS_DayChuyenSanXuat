@@ -31,7 +31,8 @@ CREATE TABLE day_chuyen(
  khu_vuc_id INT NOT NULL,
  leader_id INT NULL,
  trang_thai ENUM('HOAT_DONG','TAM_DUNG') DEFAULT 'HOAT_DONG',
- INDEX(khu_vuc_id)
+ INDEX(khu_vuc_id),
+ FOREIGN KEY(khu_vuc_id) REFERENCES khu_vuc(id)
 );
 
 CREATE TABLE cong_doan(
@@ -70,7 +71,6 @@ CREATE TABLE chung_chi_nhan_vien(
  nhan_vien_id INT NOT NULL,
  chung_chi_id INT NOT NULL,
  cap_do TINYINT NOT NULL,
- gioi_tinh ENUM('Nam','Nu'),
  ngay_cap DATE,
  ngay_het_han DATE,
  trang_thai ENUM('HIEU_LUC','HET_HAN','DAO_TAO') DEFAULT 'HIEU_LUC',
@@ -85,7 +85,8 @@ CREATE TABLE ca_lam_viec(
  id INT AUTO_INCREMENT PRIMARY KEY,
  ten_ca VARCHAR(50),
  gio_bat_dau TIME,
- gio_ket_thuc TIME
+ gio_ket_thuc TIME,
+ loai_ca ENUM('THUONG', 'TANG_CA') DEFAULT 'THUONG'
 );
 
 CREATE TABLE dang_ky_tang_ca(
@@ -104,6 +105,8 @@ CREATE TABLE yeu_cau_nhan_su(
  day_chuyen_id INT NOT NULL,
  cong_doan_id INT NOT NULL,
  so_luong_can INT NOT NULL,
+ so_luong_min INT NOT NULL DEFAULT 1,
+ so_luong_max INT NOT NULL DEFAULT 1,
  UNIQUE(day_chuyen_id,cong_doan_id),
  FOREIGN KEY(day_chuyen_id) REFERENCES day_chuyen(id),
  FOREIGN KEY(cong_doan_id) REFERENCES cong_doan(id)
@@ -148,4 +151,19 @@ CREATE TABLE thong_bao(
  da_doc BOOLEAN DEFAULT FALSE,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(nguoi_nhan_id) REFERENCES nhan_vien(id)
+);
+
+CREATE TABLE nhat_ky_phan_cong(
+ id INT AUTO_INCREMENT PRIMARY KEY,
+ nhan_vien_id INT NOT NULL,
+ day_chuyen_id INT NOT NULL,
+ cong_doan_id INT NOT NULL,
+ ca_lam_id INT NOT NULL,
+ ngay DATE NOT NULL,
+ hanh_dong VARCHAR(20) NOT NULL, -- 'GAN', 'GO', 'NGHI', 'DI_LAM_LAI'
+ thoi_gian TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(nhan_vien_id) REFERENCES nhan_vien(id) ON DELETE CASCADE,
+ FOREIGN KEY(day_chuyen_id) REFERENCES day_chuyen(id) ON DELETE CASCADE,
+ FOREIGN KEY(cong_doan_id) REFERENCES cong_doan(id) ON DELETE CASCADE,
+ FOREIGN KEY(ca_lam_id) REFERENCES ca_lam_viec(id) ON DELETE CASCADE
 );
