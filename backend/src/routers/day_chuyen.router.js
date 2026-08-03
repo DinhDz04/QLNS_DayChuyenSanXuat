@@ -15,9 +15,11 @@ router.get("/:id/chi-tiet", DayChuyenController.layChiTietDayChuyen);
 
 // Các route thay đổi dữ liệu
 router.post("/", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.taoDayChuyen);
-router.put("/:id", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.capNhatDayChuyen);
+// LEADER_LINE được phép cập nhật cấu hình công đoạn/định biên của line mình (kiểm tra phạm vi ở service)
+router.put("/:id", phanQuyen("ADMIN", "LEADER_KHU_VUC", "LEADER_LINE"), DayChuyenController.capNhatDayChuyen);
 router.delete("/:id", phanQuyen("ADMIN"), DayChuyenController.xoaDayChuyen);
 router.post("/phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.phanCongNhanSu);
+router.post("/thay-doi-nhan-su", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.thayDoiNhanSu);
 router.post("/go-phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.goPhanCongNhanSu);
 router.post("/cap-nhat-trang-thai-phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.capNhatTrangThaiPhanCong);
 router.post("/:id/auto-assign", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.tuDongGanNhanSu);

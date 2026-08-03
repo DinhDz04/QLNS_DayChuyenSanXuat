@@ -32,16 +32,19 @@ export function xoaDayChuyen(id) {
     });
 }
 
-export function layChiTietDayChuyen(id, ngay) {
+export function layChiTietDayChuyen(id, ngay, caLamId) {
     let url = `/day-chuyen/${id}/chi-tiet`;
-    if (ngay) url += `?ngay=${ngay}`;
+    const params = new URLSearchParams();
+    if (ngay) params.append("ngay", ngay);
+    if (caLamId) params.append("ca_lam_id", caLamId);
+    if (params.toString()) url += `?${params.toString()}`;
     return goiApi(url);
 }
 
 export function layUngVienChoBoPhan(congDoanId, ngay, caLamId) {
     let url = `/day-chuyen/ung-vien?cong_doan_id=${congDoanId}`;
     if (ngay) url += `&ngay=${ngay}`;
-    if (caLamId) url += `&ca_lam_id=${caLamId}`;
+    if (caLamId && caLamId !== "ALL") url += `&ca_lam_id=${caLamId}`;
     return goiApi(url);
 }
 
@@ -54,6 +57,13 @@ export function capNhatTrangThaiPhanCong(duLieu) {
 
 export function phanCongNhanSu(duLieu) {
     return goiApi("/day-chuyen/phan-cong", {
+        method: "POST",
+        body: JSON.stringify(duLieu)
+    });
+}
+
+export function thayDoiNhanSu(duLieu) {
+    return goiApi("/day-chuyen/thay-doi-nhan-su", {
         method: "POST",
         body: JSON.stringify(duLieu)
     });
