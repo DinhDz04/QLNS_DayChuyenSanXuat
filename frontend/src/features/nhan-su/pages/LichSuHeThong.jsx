@@ -56,6 +56,7 @@ export default function LichSuHeThong() {
     const categories = [
         { key: "ALL", label: "📋 Tất cả nhật ký" },
         { key: "CA_LAM", label: "⏰ Thay đổi Ca làm" },
+        { key: "TANG_CA", label: "🔥 Lịch sử Tăng ca" },
         { key: "MAT_KHAU", label: "🔑 Thay đổi Mật khẩu" },
         { key: "DAY_CHUYEN", label: "⛓️ Điều chuyển Dây chuyền" },
         { key: "VAI_TRO", label: "👥 Thay đổi Vai trò" },
@@ -163,6 +164,10 @@ export default function LichSuHeThong() {
                                         badgeColor = "#d97706";
                                         badgeBg = "#fef3c7";
                                         badgeText = "⏰ CA LÀM";
+                                    } else if (loaiThayDoi === "TANG_CA") {
+                                        badgeColor = "#ea580c";
+                                        badgeBg = "#fff7ed";
+                                        badgeText = "🔥 TĂNG CA";
                                     } else if (loaiThayDoi === "DAY_CHUYEN") {
                                         badgeColor = "#2563eb";
                                         badgeBg = "#dbeafe";

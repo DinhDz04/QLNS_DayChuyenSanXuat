@@ -11,6 +11,9 @@ import QuanLyKhuVuc from "../features/khu-vuc/pages/QuanLyKhuVuc.jsx";
 import QuanLyDayChuyen from "../features/day-chuyen/pages/QuanLyDayChuyen.jsx";
 import ChiTietDayChuyen from "../features/day-chuyen/pages/ChiTietDayChuyen.jsx";
 import QuanLyCaLam from "../features/ca-lam/pages/QuanLyCaLam.jsx";
+import QuanLyChungChi from "../features/chung-chi/pages/QuanLyChungChi.jsx";
+import QuanLyTangCa from "../features/tang-ca/pages/QuanLyTangCa.jsx";
+import PhanBoTangCa from "../features/tang-ca/pages/PhanBoTangCa.jsx";
 import LichSuHeThong from "../features/nhan-su/pages/LichSuHeThong.jsx";
 
 export default function AppRoutes() {
@@ -42,6 +45,9 @@ export default function AppRoutes() {
                 <Route path="/admin/day-chuyen" element={<QuanLyDayChuyen />} />
                 <Route path="/admin/day-chuyen/:id" element={<ChiTietDayChuyen />} />
                 <Route path="/admin/ca-lam" element={<QuanLyCaLam />} />
+                <Route path="/admin/chung-chi" element={<QuanLyChungChi />} />
+                <Route path="/admin/tang-ca" element={<QuanLyTangCa />} />
+                <Route path="/admin/phan-bo-tang-ca" element={<PhanBoTangCa />} />
             </Route>
 
             {/* Fallback */}

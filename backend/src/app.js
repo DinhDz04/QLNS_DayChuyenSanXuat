@@ -7,6 +7,8 @@ import khuVucRouter from "./routers/khu_vuc.router.js";
 import dayChuyenRouter from "./routers/day_chuyen.router.js";
 import nhanVienRouter from "./routers/nhan_vien.router.js";
 import caLamRouter from "./routers/ca_lam.router.js";
+import chungChiRouter from "./routers/chung_chi.router.js";
+import tangCaRouter from "./routers/tang_ca.router.js";
 
 import { notFoundHandler } from "./middleware/not_found.middleware.js";
 import { errorHandler } from "./middleware/error.middleware.js";
@@ -29,6 +31,8 @@ app.use("/api/khu-vuc", khuVucRouter);
 app.use("/api/day-chuyen", dayChuyenRouter);
 app.use("/api/nhan-vien", nhanVienRouter);
 app.use("/api/ca-lam", caLamRouter);
+app.use("/api/chung-chi", chungChiRouter);
+app.use("/api/tang-ca", tangCaRouter);
 
 // Khi thêm module mới (day_chuyen, chung_chi, ca_lam_viec, ...)
 // chỉ cần tạo router tương ứng rồi app.use ở đây theo cùng pattern

@@ -49,9 +49,13 @@ CREATE TABLE nhan_vien(
  so_dien_thoai VARCHAR(15),
  ngay_vao_lam DATE,
  day_chuyen_id INT,
+ ca_lam_id INT NULL,
  tai_khoan_id INT UNIQUE,
  chuc_vu ENUM('ADMIN','NHAN_VIEN','LEADER_LINE','LEADER_KHU_VUC') DEFAULT 'NHAN_VIEN',
  trang_thai ENUM('DANG_LAM','NGHI_VIEC') DEFAULT 'DANG_LAM',
+ dia_chi TEXT,
+ ngay_sinh DATE,
+ co_xoay_ca TINYINT DEFAULT 1,
  INDEX(day_chuyen_id),
  FOREIGN KEY(day_chuyen_id) REFERENCES day_chuyen(id),
  FOREIGN KEY(tai_khoan_id) REFERENCES tai_khoan(id)
@@ -81,13 +85,29 @@ CREATE TABLE chung_chi_nhan_vien(
  FOREIGN KEY(chung_chi_id) REFERENCES chung_chi(id)
 );
 
+CREATE TABLE lich_lam (
+ id INT AUTO_INCREMENT PRIMARY KEY,
+ ten_lich VARCHAR(100) NOT NULL,
+ chu_ky_tuan INT DEFAULT 0,
+ ngay_xoay_gan_nhat DATE,
+ mo_ta TEXT,
+ ngay_bat_dau DATE,
+ ngay_ket_thuc DATE,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE ca_lam_viec(
  id INT AUTO_INCREMENT PRIMARY KEY,
  ten_ca VARCHAR(50),
  gio_bat_dau TIME,
  gio_ket_thuc TIME,
- loai_ca ENUM('THUONG', 'TANG_CA') DEFAULT 'THUONG'
+ loai_ca ENUM('THUONG', 'TANG_CA') DEFAULT 'THUONG',
+ lich_lam_id INT NULL,
+ FOREIGN KEY(lich_lam_id) REFERENCES lich_lam(id) ON DELETE SET NULL
 );
+
+ALTER TABLE nhan_vien
+ADD CONSTRAINT fk_nhanvien_calam FOREIGN KEY(ca_lam_id) REFERENCES ca_lam_viec(id) ON DELETE SET NULL;
 
 CREATE TABLE dang_ky_tang_ca(
  id INT AUTO_INCREMENT PRIMARY KEY,
@@ -135,6 +155,7 @@ CREATE TABLE lich_su_dieu_dong(
  cong_doan_cu_id INT,
  cong_doan_moi_id INT,
  ly_do TEXT,
+ loai_thay_doi VARCHAR(50) DEFAULT 'DAY_CHUYEN',
  thoi_gian DATETIME DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(nhan_vien_id) REFERENCES nhan_vien(id),
  FOREIGN KEY(tu_day_chuyen_id) REFERENCES day_chuyen(id),

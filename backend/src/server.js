@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import app from "./app.js";
 import pool from "./config/db.js";
+import initDatabaseTables from "./init_tables.js";
 
 dotenv.config();
 
@@ -12,6 +13,7 @@ async function kiemTraKetNoiDatabase() {
     try {
         await pool.query("SELECT 1");
         console.log("✅ Kết nối database thành công");
+        await initDatabaseTables();
     } catch (err) {
         console.error("❌ KHÔNG kết nối được database:", err.message);
         console.error("   Kiểm tra lại file .env: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME");
@@ -21,4 +23,4 @@ async function kiemTraKetNoiDatabase() {
 app.listen(PORT, async () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
     await kiemTraKetNoiDatabase();
-});
+});

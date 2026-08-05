@@ -476,6 +476,35 @@ class AdminService {
              LEFT JOIN day_chuyen dc_den ON ls.den_day_chuyen_id = dc_den.id
              LEFT JOIN cong_doan cd_cu ON ls.cong_doan_cu_id = cd_cu.id
              LEFT JOIN cong_doan cd_moi ON ls.cong_doan_moi_id = cd_moi.id
+
+             UNION ALL
+
+             SELECT 
+                'TANG_CA' AS loai,
+                dk.ngay AS thoi_gian,
+                nv.ho_ten AS ho_ten,
+                nv.ma_nhan_vien AS ma_nhan_vien,
+                dk.ngay AS ngay,
+                dk.trang_thai AS hanh_dong,
+                dc.ten_day_chuyen AS ten_day_chuyen,
+                NULL AS ten_cong_doan,
+                cl.ten_ca AS ten_ca,
+                NULL AS tu_day_chuyen,
+                NULL AS den_day_chuyen,
+                NULL AS cong_doan_cu,
+                NULL AS cong_doan_moi,
+                CONCAT('Đăng ký tăng ca (Trạng thái: ', 
+                       CASE dk.trang_thai 
+                         WHEN 'CHO_DUYET' THEN 'Chờ duyệt' 
+                         WHEN 'DA_DUYET' THEN 'Đã duyệt' 
+                         WHEN 'TU_CHOI' THEN 'Từ chối' 
+                         ELSE dk.trang_thai 
+                       END, ')') AS ly_do,
+                'TANG_CA' AS loai_thay_doi
+             FROM dang_ky_tang_ca dk
+             JOIN nhan_vien nv ON dk.nhan_vien_id = nv.id
+             LEFT JOIN ca_lam_viec cl ON dk.ca_lam_id = cl.id
+             LEFT JOIN day_chuyen dc ON nv.day_chuyen_id = dc.id
              
              ORDER BY thoi_gian DESC`
         );

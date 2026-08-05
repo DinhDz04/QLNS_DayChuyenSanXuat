@@ -35,6 +35,24 @@ const MENU_ITEMS = [
         choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"]
     },
     {
+        tieuDe: "Quản lý chứng chỉ",
+        icon: "🎓",
+        duongDan: "/admin/chung-chi",
+        choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"]
+    },
+    {
+        tieuDe: "Quản lý Tăng ca",
+        icon: "📝",
+        duongDan: "/admin/tang-ca",
+        choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"]
+    },
+    {
+        tieuDe: "Phân bổ Tăng ca",
+        icon: "⚡",
+        duongDan: "/admin/phan-bo-tang-ca",
+        choPhep: ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"]
+    },
+    {
         tieuDe: "Nhật ký hệ thống",
         icon: "📜",
         duongDan: "/admin/lich-su",
