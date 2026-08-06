@@ -4,6 +4,8 @@ import api from "../../../api.js";
 
 export default function QuanLyTangCa() {
     const { nguoiDung } = useAuth();
+    const laAdmin = nguoiDung && (nguoiDung.role === "ADMIN" || nguoiDung.role === "MANAGER");
+    const laLeaderOnly = nguoiDung && (nguoiDung.role === "LEADER_LINE" || nguoiDung.role === "LEADER_KHU_VUC");
     const laLeader = nguoiDung && ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"].includes(nguoiDung.role);
 
     const todayStr = new Date().toISOString().split("T")[0];
@@ -14,6 +16,7 @@ export default function QuanLyTangCa() {
     const [caLamLoc, setCaLamLoc] = useState("");
     const [trangThaiLoc, setTrangThaiLoc] = useState("");
     const [tuKhoa, setTuKhoa] = useState("");
+    const [tuKhoaModal, setTuKhoaModal] = useState("");
 
     // Data lists
     const [danhSachTangCa, setDanhSachTangCa] = useState([]);
@@ -48,12 +51,22 @@ export default function QuanLyTangCa() {
                 api("/nhan-vien")
             ]);
             if (resDc.success) setDanhSachDayChuyen(resDc.data || []);
-            if (resCa.success) setDanhSachCaLam(resCa.data || []);
+            if (resCa.success) {
+                const caList = resCa.data || [];
+                setDanhSachCaLam(caList);
+                if (laLeaderOnly) {
+                    if (nguoiDung?.ca_lam_id) {
+                        setCaLamLoc(String(nguoiDung.ca_lam_id));
+                    } else if (caList.length > 0) {
+                        setCaLamLoc(String(caList[0].id));
+                    }
+                }
+            }
             if (resNv.success) setDanhSachNhanVien(resNv.data || []);
         } catch (err) {
             console.error("Lỗi khi tải dữ liệu Lookup:", err);
         }
-    }, []);
+    }, [laLeaderOnly, nguoiDung]);
 
     // Load danh sách đăng ký tăng ca
     const taiDanhSachTangCa = useCallback(async () => {
@@ -69,7 +82,17 @@ export default function QuanLyTangCa() {
 
             const res = await api(url);
             if (res.success) {
-                setDanhSachTangCa(res.data || []);
+                let data = res.data || [];
+                // Nếu là Leader (LEADER_KHU_VUC hoặc LEADER_LINE): lọc danh sách thuộc ca/dây chuyền của mình
+                if (laLeaderOnly) {
+                    data = data.filter((item) => {
+                        const targetCa = caLamLoc || nguoiDung?.ca_lam_id;
+                        const matchCa = !targetCa || String(item.ca_lam_id) === String(targetCa) || String(item.ca_lam_goc_id) === String(targetCa);
+                        const matchLeaderLine = !nguoiDung?.day_chuyen_id || String(item.day_chuyen_id) === String(nguoiDung.day_chuyen_id);
+                        return matchCa && matchLeaderLine;
+                    });
+                }
+                setDanhSachTangCa(data);
                 setSelectedIds([]);
             }
         } catch (err) {
@@ -77,7 +100,7 @@ export default function QuanLyTangCa() {
         } finally {
             setDangTai(false);
         }
-    }, [ngayLoc, dayChuyenLoc, caLamLoc, trangThaiLoc, tuKhoa]);
+    }, [ngayLoc, dayChuyenLoc, caLamLoc, trangThaiLoc, tuKhoa, laLeaderOnly, nguoiDung]);
 
     useEffect(() => {
         taiLookupData();
@@ -140,11 +163,15 @@ export default function QuanLyTangCa() {
 
     // Open Modal Đăng ký tăng ca
     const hienModalDangKyForm = () => {
+        setTuKhoaModal("");
+        const defaultCaLamId = laLeaderOnly && nguoiDung?.ca_lam_id ? nguoiDung.ca_lam_id : (danhSachCaLam.length > 0 ? danhSachCaLam[0].id : "");
+        const defaultDayChuyenId = laLeaderOnly && nguoiDung?.day_chuyen_id ? nguoiDung.day_chuyen_id : (danhSachDayChuyen.length > 0 ? danhSachDayChuyen[0].id : "");
+
         setFormDangKy({
             cheDo: "CAN_HANH",
-            day_chuyen_id: danhSachDayChuyen.length > 0 ? danhSachDayChuyen[0].id : "",
+            day_chuyen_id: defaultDayChuyenId,
             nhan_vien_ids: [],
-            ca_lam_id: danhSachCaLam.length > 0 ? danhSachCaLam[0].id : "",
+            ca_lam_id: defaultCaLamId,
             ngay: ngayLoc || todayStr,
             trang_thai: "DA_DUYET"
         });
@@ -315,20 +342,23 @@ export default function QuanLyTangCa() {
                     onChange={(e) => setDayChuyenLoc(e.target.value)}
                     style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "var(--radius)", background: "#fff" }}
                 >
-                    <option value="">-- Tất cả dây chuyền --</option>
-                    {danhSachDayChuyen.map((dc) => (
-                        <option key={dc.id} value={dc.id}>
-                            {dc.ten_day_chuyen}
-                        </option>
-                    ))}
+                    {!laLeaderOnly && <option value="">-- Tất cả dây chuyền --</option>}
+                    {danhSachDayChuyen
+                        .filter(dc => !laLeaderOnly || !nguoiDung?.day_chuyen_id || String(dc.id) === String(nguoiDung.day_chuyen_id))
+                        .map((dc) => (
+                            <option key={dc.id} value={dc.id}>
+                                {dc.ten_day_chuyen}
+                            </option>
+                        ))}
                 </select>
 
                 <select
                     value={caLamLoc}
+                    disabled={laLeaderOnly && Boolean(nguoiDung?.ca_lam_id)}
                     onChange={(e) => setCaLamLoc(e.target.value)}
-                    style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "var(--radius)", background: "#fff" }}
+                    style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "var(--radius)", background: laLeaderOnly && nguoiDung?.ca_lam_id ? "#f1f5f9" : "#fff" }}
                 >
-                    <option value="">-- Tất cả ca làm --</option>
+                    {!laLeaderOnly && <option value="">-- Tất cả ca làm --</option>}
                     {danhSachCaLam.map((cl) => (
                         <option key={cl.id} value={cl.id}>
                             {cl.ten_ca} ({cl.gio_bat_dau?.substring(0, 5)} - {cl.gio_ket_thuc?.substring(0, 5)})
@@ -527,11 +557,18 @@ export default function QuanLyTangCa() {
                                         />
                                     </div>
                                     <div>
-                                        <label>Chọn Ca làm / Ca tăng ca (*):</label>
+                                        <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                            <span>Chọn Ca làm / Ca tăng ca (*):</span>
+                                            {laLeaderOnly && nguoiDung?.ca_lam_id && (
+                                                <span style={{ fontSize: "11px", color: "#b45309", fontWeight: "bold" }}>🔒 </span>
+                                            )}
+                                        </label>
                                         <select
                                             required
                                             value={formDangKy.ca_lam_id}
+                                            disabled={laLeaderOnly && Boolean(nguoiDung?.ca_lam_id)}
                                             onChange={(e) => setFormDangKy({ ...formDangKy, ca_lam_id: e.target.value })}
+                                            style={{ background: laLeaderOnly && nguoiDung?.ca_lam_id ? "#f1f5f9" : "#fff" }}
                                         >
                                             {danhSachCaLam.map((cl) => (
                                                 <option key={cl.id} value={cl.id}>
@@ -573,61 +610,148 @@ export default function QuanLyTangCa() {
                                             value={formDangKy.day_chuyen_id}
                                             onChange={(e) => setFormDangKy({ ...formDangKy, day_chuyen_id: e.target.value })}
                                         >
-                                            {danhSachDayChuyen.map((dc) => (
-                                                <option key={dc.id} value={dc.id}>
-                                                    {dc.ten_day_chuyen} (Duyệt toàn bộ nhân sự trong chuyền)
-                                                </option>
-                                            ))}
+                                            {danhSachDayChuyen
+                                                .filter(dc => !laLeaderOnly || !nguoiDung?.day_chuyen_id || String(dc.id) === String(nguoiDung.day_chuyen_id))
+                                                .map((dc) => (
+                                                    <option key={dc.id} value={dc.id}>
+                                                        {dc.ten_day_chuyen} (Duyệt toàn bộ nhân sự trong chuyền)
+                                                    </option>
+                                                ))}
                                         </select>
                                     </div>
                                 ) : (
                                     <div className="nhom-o-nhap">
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                                            <label style={{ margin: 0 }}>Danh sách nhân viên (Đã chọn: {formDangKy.nhan_vien_ids.length}):</label>
-                                            {formDangKy.day_chuyen_id && (
-                                                <button
-                                                    type="button"
-                                                    style={{ fontSize: "12px", background: "none", border: "none", color: "var(--amber-dark)", cursor: "pointer", textDecoration: "underline" }}
-                                                    onClick={() => xuLyChonTatCaSubLine(formDangKy.day_chuyen_id)}
-                                                >
-                                                    + Chọn nhanh line này
-                                                </button>
-                                            )}
-                                        </div>
-                                        <div
-                                            style={{
-                                                maxHeight: "180px",
-                                                overflowY: "auto",
-                                                border: "1px solid #d3d7de",
-                                                borderRadius: "var(--radius)",
-                                                padding: "8px 12px",
-                                                background: "#fff"
-                                            }}
-                                        >
-                                            {danhSachNhanVien.map((nv) => (
-                                                <label
-                                                    key={nv.id}
-                                                    style={{
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        gap: "8px",
-                                                        padding: "4px 0",
-                                                        borderBottom: "1px solid #f1f5f9",
-                                                        cursor: "pointer",
-                                                        fontSize: "13px"
-                                                    }}
-                                                >
+                                        {(() => {
+                                            const laAdminUser = nguoiDung && (nguoiDung.role === "ADMIN" || nguoiDung.role === "MANAGER");
+                                            const activeTargetCa = laLeaderOnly && nguoiDung?.ca_lam_id ? nguoiDung.ca_lam_id : formDangKy.ca_lam_id;
+
+                                            // Lọc danh sách nhân viên trong modal
+                                            let listNvFiltered = danhSachNhanVien;
+
+                                            if (laLeaderOnly) {
+                                                // Đối với Leader: CHỈ hiện nhân viên thuộc ca của Leader (VÀ thuộc chuyền nếu có)
+                                                listNvFiltered = danhSachNhanVien.filter((nv) => {
+                                                    const matchCa = !activeTargetCa || String(nv.ca_lam_id) === String(activeTargetCa);
+                                                    const matchLine = !nguoiDung?.day_chuyen_id || String(nv.day_chuyen_id) === String(nguoiDung.day_chuyen_id);
+                                                    return matchCa && matchLine; // AND: bắt buộc đúng ca
+                                                });
+                                            } else if (laAdminUser && formDangKy.ca_lam_id) {
+                                                // Đối với Admin: hiển thị danh sách nhân viên thuộc ca được chọn
+                                                listNvFiltered = danhSachNhanVien.filter(
+                                                    (nv) => String(nv.ca_lam_id) === String(formDangKy.ca_lam_id)
+                                                );
+                                            }
+
+                                            // Nếu lọc theo từ khóa trong modal (nếu có)
+                                            if (tuKhoaModal) {
+                                                const kw = tuKhoaModal.toLowerCase();
+                                                listNvFiltered = listNvFiltered.filter(
+                                                    (nv) => nv.ho_ten?.toLowerCase().includes(kw) || nv.ma_nhan_vien?.toLowerCase().includes(kw)
+                                                );
+                                            }
+
+                                            const currentCa = danhSachCaLam.find(c => String(c.id) === String(formDangKy.ca_lam_id));
+                                            const allChecked = listNvFiltered.length > 0 && listNvFiltered.every((nv) => formDangKy.nhan_vien_ids.includes(nv.id));
+
+                                            return (
+                                                <>
+                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                                                        <label style={{ margin: 0, fontWeight: "bold" }}>
+                                                            Danh sách Nhân viên {currentCa ? `(${currentCa.ten_ca})` : ""}:{" "}
+                                                            <span style={{ fontSize: "12px", background: "#e2e8f0", color: "#0f172a", padding: "2px 8px", borderRadius: "10px", fontWeight: "bold" }}>
+                                                                Đã chọn: {formDangKy.nhan_vien_ids.length}
+                                                            </span>
+                                                        </label>
+                                                        <button
+                                                            type="button"
+                                                            style={{ fontSize: "12px", background: "none", border: "none", color: "var(--amber-dark)", cursor: "pointer", textDecoration: "underline", fontWeight: "bold" }}
+                                                            onClick={() => {
+                                                                const ids = listNvFiltered.map(n => n.id);
+                                                                if (allChecked) {
+                                                                    setFormDangKy({
+                                                                        ...formDangKy,
+                                                                        nhan_vien_ids: formDangKy.nhan_vien_ids.filter(id => !ids.includes(id))
+                                                                    });
+                                                                } else {
+                                                                    setFormDangKy({
+                                                                        ...formDangKy,
+                                                                        nhan_vien_ids: Array.from(new Set([...formDangKy.nhan_vien_ids, ...ids]))
+                                                                    });
+                                                                }
+                                                            }}
+                                                        >
+                                                            {allChecked ? "❌ Bỏ chọn ca này" : "✅ Chọn tất cả ca này"}
+                                                        </button>
+                                                    </div>
+
                                                     <input
-                                                        type="checkbox"
-                                                        checked={formDangKy.nhan_vien_ids.includes(nv.id)}
-                                                        onChange={() => xuLyNhanVienSelection(nv.id)}
+                                                        type="text"
+                                                        placeholder="🔍 Tìm nhân viên theo tên/mã..."
+                                                        value={tuKhoaModal}
+                                                        onChange={(e) => setTuKhoaModal(e.target.value)}
+                                                        style={{ width: "100%", padding: "6px 10px", fontSize: "12px", marginBottom: "8px", border: "1px solid #cbd5e1", borderRadius: "var(--radius)" }}
                                                     />
-                                                    <span>
-                                                        <strong>{nv.ho_ten}</strong> ({nv.ma_nhan_vien || "NV"}) - {nv.ten_day_chuyen || "Tự do"}
-                                                    </span>
-                                                </label>
-                                            ))}
-                                        </div>
+
+                                                    {laAdminUser && (
+                                                        <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px" }}>
+                                                            ℹ️ <i>(Admin đang xem nhân viên thuộc {currentCa ? currentCa.ten_ca : "ca đã chọn"})</i>
+                                                        </div>
+                                                    )}
+                                                    {laLeaderOnly && (
+                                                        <div style={{ fontSize: "11px", color: "#b45309", marginBottom: "6px", fontWeight: "600" }}>
+                                                            🔒 <i>(Leader chỉ được chọn nhân viên thuộc ca/dây chuyền của mình)</i>
+                                                        </div>
+                                                    )}
+
+                                                    <div
+                                                        style={{
+                                                            maxHeight: "200px",
+                                                            overflowY: "auto",
+                                                            border: "1px solid #d3d7de",
+                                                            borderRadius: "var(--radius)",
+                                                            padding: "8px 12px",
+                                                            background: "#fff"
+                                                        }}
+                                                    >
+                                                        {listNvFiltered.length === 0 ? (
+                                                            <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "13px" }}>
+                                                                Không tìm thấy nhân viên thuộc ca này
+                                                            </div>
+                                                        ) : (
+                                                            listNvFiltered.map((nv) => (
+                                                                <label
+                                                                    key={nv.id}
+                                                                    style={{
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        gap: "8px",
+                                                                        padding: "5px 0",
+                                                                        borderBottom: "1px solid #f1f5f9",
+                                                                        cursor: "pointer",
+                                                                        fontSize: "13px"
+                                                                    }}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={formDangKy.nhan_vien_ids.includes(nv.id)}
+                                                                        onChange={() => xuLyNhanVienSelection(nv.id)}
+                                                                    />
+                                                                    <span>
+                                                                        <strong>{nv.ho_ten}</strong> ({nv.ma_nhan_vien || "NV"})
+                                                                        <span style={{ color: "var(--steel)", marginLeft: "6px" }}>- {nv.ten_day_chuyen || "Tự do"}</span>
+                                                                        {nv.ten_ca_lam && (
+                                                                            <span style={{ color: "#d97706", marginLeft: "6px", fontWeight: "600" }}>
+                                                                                [{nv.ten_ca_lam}]
+                                                                            </span>
+                                                                        )}
+                                                                    </span>
+                                                                </label>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 )}
 
