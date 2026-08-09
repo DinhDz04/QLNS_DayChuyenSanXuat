@@ -10,6 +10,7 @@ router.use(xacThucToken);
 router.get("/", DayChuyenController.layDanhSachDayChuyen);
 router.get("/leaders", DayChuyenController.layDanhSachLeaderLine);
 router.get("/ung-vien", DayChuyenController.layUngVienChoBoPhan);
+router.get("/lich-su-phan-cong", DayChuyenController.layLichSuPhanCong);
 router.get("/:id", DayChuyenController.layDayChuyenTheoId);
 router.get("/:id/chi-tiet", DayChuyenController.layChiTietDayChuyen);
 
@@ -21,7 +22,9 @@ router.delete("/:id", phanQuyen("ADMIN"), DayChuyenController.xoaDayChuyen);
 router.post("/phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.phanCongNhanSu);
 router.post("/thay-doi-nhan-su", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.thayDoiNhanSu);
 router.post("/go-phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.goPhanCongNhanSu);
+router.post("/dieu-chinh-phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.dieuChinhPhanCong);
 router.post("/cap-nhat-trang-thai-phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.capNhatTrangThaiPhanCong);
+router.post("/nghi-phep-phan-cong", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.nghiPhepPhanCong);
 router.post("/:id/auto-assign", phanQuyen("ADMIN", "LEADER_KHU_VUC"), DayChuyenController.tuDongGanNhanSu);
 
 export default router;

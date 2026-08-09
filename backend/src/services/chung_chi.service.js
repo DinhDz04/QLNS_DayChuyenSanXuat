@@ -108,19 +108,32 @@ class ChungChiService {
     /**
      * Lấy danh sách gán chứng chỉ nhân viên
      */
-    static async layDanhSachChungChiNhanVien({ nhan_vien_id, chung_chi_id, trang_thai, q } = {}) {
+    static async layDanhSachChungChiNhanVien({ nhan_vien_id, chung_chi_id, ca_lam_id, trang_thai, q, nguoiDung } = {}) {
         let sql = `
             SELECT ccnv.id, ccnv.nhan_vien_id, ccnv.chung_chi_id, ccnv.cap_do, 
                    ccnv.ngay_cap, ccnv.ngay_het_han, ccnv.trang_thai,
-                   nv.ma_nhan_vien, nv.ho_ten, nv.chuc_vu, dc.ten_day_chuyen,
+                   nv.ma_nhan_vien, nv.ho_ten, nv.chuc_vu, nv.ca_lam_id, cl.ten_ca AS ten_ca_lam, dc.ten_day_chuyen,
                    cc.ten_chung_chi, cc.mo_ta AS mo_ta_chung_chi
             FROM chung_chi_nhan_vien ccnv
             JOIN nhan_vien nv ON ccnv.nhan_vien_id = nv.id
             JOIN chung_chi cc ON ccnv.chung_chi_id = cc.id
             LEFT JOIN day_chuyen dc ON nv.day_chuyen_id = dc.id
+            LEFT JOIN ca_lam_viec cl ON nv.ca_lam_id = cl.id
             WHERE 1=1
         `;
         const params = [];
+
+        // Ràng buộc Phân quyền cho Leader: nếu không phải ADMIN/MANAGER
+        if (nguoiDung && !["ADMIN", "MANAGER"].includes(nguoiDung.role)) {
+            const [nvMe] = await pool.query("SELECT ca_lam_id FROM nhan_vien WHERE tai_khoan_id = ? LIMIT 1", [nguoiDung.id]);
+            if (nvMe.length > 0 && nvMe[0].ca_lam_id) {
+                sql += " AND (nv.ca_lam_id = ? OR nv.ca_lam_id IS NULL)";
+                params.push(nvMe[0].ca_lam_id);
+            }
+        } else if (ca_lam_id) {
+            sql += " AND nv.ca_lam_id = ?";
+            params.push(ca_lam_id);
+        }
 
         if (nhan_vien_id) {
             sql += " AND ccnv.nhan_vien_id = ?";
@@ -138,9 +151,9 @@ class ChungChiService {
         }
 
         if (q) {
-            sql += " AND (nv.ho_ten LIKE ? OR nv.ma_nhan_vien LIKE ? OR cc.ten_chung_chi LIKE ?)";
+            sql += " AND (nv.ho_ten LIKE ? OR nv.ma_nhan_vien LIKE ? OR cc.ten_chung_chi LIKE ? OR cl.ten_ca LIKE ?)";
             const likeQ = `%${q}%`;
-            params.push(likeQ, likeQ, likeQ);
+            params.push(likeQ, likeQ, likeQ, likeQ);
         }
 
         sql += " ORDER BY ccnv.id DESC";
@@ -152,7 +165,7 @@ class ChungChiService {
     /**
      * Gán chứng chỉ cho 1 hoặc nhiều nhân viên (hoặc cập nhật nếu đã gán)
      */
-    static async ganChungChiNhanVien({ nhan_vien_id, nhan_vien_ids, chung_chi_id, cap_do = 1, ngay_cap, ngay_het_han, trang_thai = 'HIEU_LUC' }) {
+    static async ganChungChiNhanVien({ nhan_vien_id, nhan_vien_ids, chung_chi_id, cap_do = 1, ngay_cap, ngay_het_han, trang_thai = 'HIEU_LUC', nguoiDung }) {
         if (!chung_chi_id) {
             throw new Error("Chứng chỉ là bắt buộc");
         }
@@ -166,6 +179,22 @@ class ChungChiService {
 
         if (nvIds.length === 0) {
             throw new Error("Vui lòng chọn ít nhất một nhân viên để gán chứng chỉ");
+        }
+
+        // Kiểm tra phân quyền Leader: Leader chỉ gán cho nhân viên thuộc ca của mình
+        if (nguoiDung && !["ADMIN", "MANAGER"].includes(nguoiDung.role)) {
+            const [nvMe] = await pool.query("SELECT ca_lam_id FROM nhan_vien WHERE tai_khoan_id = ? LIMIT 1", [nguoiDung.id]);
+            if (nvMe.length > 0 && nvMe[0].ca_lam_id) {
+                const leaderCaLamId = nvMe[0].ca_lam_id;
+                const [invalidNv] = await pool.query(
+                    "SELECT ho_ten FROM nhan_vien WHERE id IN (?) AND ca_lam_id IS NOT NULL AND ca_lam_id != ?",
+                    [nvIds, leaderCaLamId]
+                );
+                if (invalidNv.length > 0) {
+                    const tenKhac = invalidNv.map(n => n.ho_ten).join(", ");
+                    throw new Error(`Bạn không có quyền gán chứng chỉ cho nhân viên ngoài ca của mình (${tenKhac})`);
+                }
+            }
         }
 
         const capDoNum = Number(cap_do) || 1;

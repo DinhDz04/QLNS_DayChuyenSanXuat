@@ -139,6 +139,10 @@ CREATE TABLE phan_cong_nhan_su(
  cong_doan_id INT NOT NULL,
  ca_lam_id INT NOT NULL,
  ngay DATE NOT NULL,
+ ngay_bat_dau DATE NULL,
+ ngay_ket_thuc DATE NULL,
+ thoi_gian_bat_dau DATETIME NULL,
+ thoi_gian_ket_thuc DATETIME NULL,
  trang_thai ENUM('DANG_LAM','DIEU_DONG','NGHI') DEFAULT 'DANG_LAM',
  INDEX(nhan_vien_id),
  FOREIGN KEY(nhan_vien_id) REFERENCES nhan_vien(id),
@@ -182,9 +186,27 @@ CREATE TABLE nhat_ky_phan_cong(
  ca_lam_id INT NOT NULL,
  ngay DATE NOT NULL,
  hanh_dong VARCHAR(20) NOT NULL, -- 'GAN', 'GO', 'NGHI', 'DI_LAM_LAI'
+ thoi_gian_bat_dau DATETIME NULL,
+ thoi_gian_ket_thuc DATETIME NULL,
+ ly_do TEXT NULL,
+ nguoi_thay_the_id INT NULL,
  thoi_gian TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(nhan_vien_id) REFERENCES nhan_vien(id) ON DELETE CASCADE,
  FOREIGN KEY(day_chuyen_id) REFERENCES day_chuyen(id) ON DELETE CASCADE,
  FOREIGN KEY(cong_doan_id) REFERENCES cong_doan(id) ON DELETE CASCADE,
  FOREIGN KEY(ca_lam_id) REFERENCES ca_lam_viec(id) ON DELETE CASCADE
+);
+
+CREATE TABLE lich_lam_viec_nhan_vien(
+ id INT AUTO_INCREMENT PRIMARY KEY,
+ nhan_vien_id INT NOT NULL,
+ day_chuyen_id INT,
+ cong_doan_id INT,
+ ca_lam_id INT,
+ thoi_gian_bat_dau DATETIME NOT NULL,
+ thoi_gian_ket_thuc DATETIME NOT NULL,
+ trang_thai ENUM('DANG_LAM','NGHI_PHEP','NGHI','VANG','TANG_CA','DIEU_CHUYEN','CHO_PHAN_CONG') DEFAULT 'DANG_LAM',
+ ghi_chu TEXT,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ INDEX(nhan_vien_id), INDEX(day_chuyen_id), INDEX(thoi_gian_bat_dau), INDEX(thoi_gian_ket_thuc)
 );

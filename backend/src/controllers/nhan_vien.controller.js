@@ -8,7 +8,7 @@ class NhanVienController {
     static async layDanhSachNhanVien(req, res, next) {
         try {
             const { q, day_chuyen_id, ca_lam_id, trang_thai } = req.query;
-            const data = await NhanVienService.layDanhSachNhanVien({ q, day_chuyen_id, ca_lam_id, trang_thai });
+            const data = await NhanVienService.layDanhSachNhanVien({ q, day_chuyen_id, ca_lam_id, trang_thai, nguoiDung: req.nguoiDung });
             return res.json({
                 success: true,
                 message: "Lấy danh sách nhân viên thành công",

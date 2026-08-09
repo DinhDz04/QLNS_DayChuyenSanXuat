@@ -75,7 +75,8 @@ class KhuVucController {
 
     static async layBanDoKhuVuc(req, res, next) {
         try {
-            const data = await KhuVucService.layBanDoKhuVuc(req.params.id);
+            const { ca_lam_id } = req.query;
+            const data = await KhuVucService.layBanDoKhuVuc(req.params.id, { ca_lam_id, nguoiDung: req.nguoiDung });
             return res.json({ success: true, message: "Lấy bản đồ khu vực thành công", data });
         } catch (err) {
             next(err);

@@ -7,6 +7,8 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
     const [tenDayChuyen, setTenDayChuyen] = useState("");
     const [khuVucId, setKhuVucId] = useState("");
     const [leaderId, setLeaderId] = useState("");
+    const [leaderNgayBatDau, setLeaderNgayBatDau] = useState(new Date().toISOString().split("T")[0]);
+    const [leaderNgayKetThuc, setLeaderNgayKetThuc] = useState("");
     const [trangThai, setTrangThai] = useState("HOAT_DONG");
     
     const [congDoan, setCongDoan] = useState([
@@ -26,6 +28,8 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
                 setTenDayChuyen(dayChuyen.ten_day_chuyen || "");
                 setKhuVucId(dayChuyen.khu_vuc_id || "");
                 setLeaderId(dayChuyen.leader_id || "");
+                setLeaderNgayBatDau(dayChuyen.leader_ngay_bat_dau ? dayChuyen.leader_ngay_bat_dau.slice(0, 10) : new Date().toISOString().split("T")[0]);
+                setLeaderNgayKetThuc(dayChuyen.leader_ngay_ket_thuc ? dayChuyen.leader_ngay_ket_thuc.slice(0, 10) : "");
                 setTrangThai(dayChuyen.trang_thai || "HOAT_DONG");
                 setCongDoan([]);
                 taiCongDoanCuaLine(dayChuyen.id);
@@ -33,6 +37,8 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
                 setTenDayChuyen("");
                 setKhuVucId("");
                 setLeaderId("");
+                setLeaderNgayBatDau(new Date().toISOString().split("T")[0]);
+                setLeaderNgayKetThuc("");
                 setTrangThai("HOAT_DONG");
                 setCongDoan([
                     { so_luong_can: 1, so_luong_min: 1, so_luong_max: 1 }
@@ -118,6 +124,8 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
                 ten_day_chuyen: tenDayChuyen.trim(),
                 khu_vuc_id: Number(khuVucId),
                 leader_id: leaderId ? Number(leaderId) : null,
+                leader_ngay_bat_dau: leaderId ? (leaderNgayBatDau || null) : null,
+                leader_ngay_ket_thuc: leaderId ? (leaderNgayKetThuc || null) : null,
                 trang_thai: trangThai,
                 bo_phan: congDoan.map((cd, idx) => ({
                     cong_doan_id: cd.cong_doan_id || null,
@@ -212,6 +220,33 @@ export default function ModalDayChuyen({ isOpen, cheDo, dayChuyen, onClose, onSa
                         ))}
                     </select>
                 </div>
+
+                {leaderId && (
+                    <div style={{ display: "flex", gap: "12px", marginBottom: "16px", background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                        <div style={{ flex: 1 }}>
+                            <label htmlFor="modal_leader_bat_dau" style={{ fontSize: "12px", fontWeight: "bold", color: "#475569" }}>Ngày bắt đầu phụ trách *</label>
+                            <input
+                                id="modal_leader_bat_dau"
+                                type="date"
+                                value={leaderNgayBatDau}
+                                onChange={(e) => setLeaderNgayBatDau(e.target.value)}
+                                style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px", marginTop: "4px" }}
+                                required={Boolean(leaderId)}
+                            />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                            <label htmlFor="modal_leader_ket_thuc" style={{ fontSize: "12px", fontWeight: "bold", color: "#475569" }}>Ngày kết thúc phụ trách (Để trống nếu chưa xác định)</label>
+                            <input
+                                id="modal_leader_ket_thuc"
+                                type="date"
+                                min={leaderNgayBatDau}
+                                value={leaderNgayKetThuc}
+                                onChange={(e) => setLeaderNgayKetThuc(e.target.value)}
+                                style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px", marginTop: "4px" }}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 <div className="nhom-o-nhap">
                     <label htmlFor="modal_trang_thai">Trạng thái dây chuyền</label>

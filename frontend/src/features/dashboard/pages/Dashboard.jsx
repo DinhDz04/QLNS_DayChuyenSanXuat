@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext.jsx";
 import RoleBadge, { TEN_ROLE } from "../../../components/ui/Badge.jsx";
+import api from "../../../api.js";
 import { layDanhSachKhuVuc, layBanDoKhuVuc } from "../../khu-vuc/services/khuVuc.service.js";
 
 const CAC_KHU_VUC_CHUC_NANG = [
@@ -38,11 +39,17 @@ export default function Dashboard() {
     const [danhSachKhuVuc, setDanhSachKhuVuc] = useState([]);
     const [selectedKhuVucId, setSelectedKhuVucId] = useState("");
     const [congDoanList, setCongDoanList] = useState([]);
+    const [danhSachCaLam, setDanhSachCaLam] = useState([]);
+    const [selectedCaLamId, setSelectedCaLamId] = useState("");
     
     const [dangTaiDs, setDangTaiDs] = useState(true);
     const [dangTaiMap, setDangTaiMap] = useState(false);
 
     useEffect(() => {
+        api("/ca-lam").then(res => {
+            if (res.success) setDanhSachCaLam(res.data || []);
+        }).catch(err => console.error("Lỗi khi tải danh sách ca làm:", err));
+
         if (nguoiDung && ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"].includes(nguoiDung.role)) {
             taiDanhSachKhuVuc();
         }
@@ -55,7 +62,7 @@ export default function Dashboard() {
             if (res.success && res.data.length > 0) {
                 setDanhSachKhuVuc(res.data);
                 setSelectedKhuVucId(res.data[0].id);
-                taiMap(res.data[0].id);
+                taiMap(res.data[0].id, selectedCaLamId);
             }
         } catch (err) {
             console.error("Lỗi khi tải danh sách khu vực ở dashboard:", err);
@@ -64,11 +71,11 @@ export default function Dashboard() {
         }
     }
 
-    async function taiMap(kvId) {
+    async function taiMap(kvId, caId) {
         if (!kvId) return;
         setDangTaiMap(true);
         try {
-            const res = await layBanDoKhuVuc(kvId);
+            const res = await layBanDoKhuVuc(kvId, caId !== undefined ? caId : selectedCaLamId);
             if (res.success) {
                 const list = res.data.cong_doan.map(cd => ({
                     ...cd,
@@ -89,7 +96,14 @@ export default function Dashboard() {
         const val = e.target.value;
         setSelectedKhuVucId(val);
         setCongDoanList([]);
-        taiMap(val);
+        taiMap(val, selectedCaLamId);
+    }
+
+    function handleCaLamChange(e) {
+        const val = e.target.value;
+        setSelectedCaLamId(val);
+        setCongDoanList([]);
+        taiMap(selectedKhuVucId, val);
     }
 
     const coQuyenXemSaBan = nguoiDung && ["ADMIN", "LEADER_KHU_VUC", "LEADER_LINE", "MANAGER"].includes(nguoiDung.role);
@@ -176,17 +190,32 @@ export default function Dashboard() {
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                             <div>
                                 <h3>📊 Thống kê tình trạng nhân sự khu vực</h3>
-                                <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "6px" }}>
-                                    <label style={{ fontSize: "13px", fontWeight: "bold" }}>Khu vực hiển thị:</label>
-                                    <select 
-                                        value={selectedKhuVucId} 
-                                        onChange={handleKhuVucChange} 
-                                        style={{ padding: "6px 12px", borderRadius: "4px", border: "1px solid #cbd5e1", fontSize: "13px" }}
-                                    >
-                                        {danhSachKhuVuc.map(kv => (
-                                            <option key={kv.id} value={kv.id}>{kv.ten_khu_vuc} ({kv.ten_khach_hang})</option>
-                                        ))}
-                                    </select>
+                                <div style={{ display: "flex", gap: "16px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                        <label style={{ fontSize: "13px", fontWeight: "bold" }}>Khu vực hiển thị:</label>
+                                        <select 
+                                            value={selectedKhuVucId} 
+                                            onChange={handleKhuVucChange} 
+                                            style={{ padding: "6px 12px", borderRadius: "4px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                                        >
+                                            {danhSachKhuVuc.map(kv => (
+                                                <option key={kv.id} value={kv.id}>{kv.ten_khu_vuc} ({kv.ten_khach_hang})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                        <label style={{ fontSize: "13px", fontWeight: "bold" }}>⏰ Ca làm:</label>
+                                        <select 
+                                            value={selectedCaLamId} 
+                                            onChange={handleCaLamChange} 
+                                            style={{ padding: "6px 12px", borderRadius: "4px", border: "1px solid #cbd5e1", fontSize: "13px", background: "#fff" }}
+                                        >
+                                            <option value="">-- Tất cả các ca --</option>
+                                            {danhSachCaLam.map(cl => (
+                                                <option key={cl.id} value={cl.id}>{cl.ten_ca}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>

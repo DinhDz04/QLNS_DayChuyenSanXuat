@@ -17,10 +17,20 @@ async function kiemTraKetNoiDatabase() {
     } catch (err) {
         console.error("❌ KHÔNG kết nối được database:", err.message);
         console.error("   Kiểm tra lại file .env: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME");
+        throw err;
     }
 }
 
-app.listen(PORT, async () => {
-    console.log(`Server đang chạy tại http://localhost:${PORT}`);
-    await kiemTraKetNoiDatabase();
-});
+async function khoiDongServer() {
+    try {
+        await kiemTraKetNoiDatabase();
+        app.listen(PORT, () => {
+            console.log(`Server đang chạy tại http://localhost:${PORT}`);
+        });
+    } catch (err) {
+        console.error("❌ Không thể khởi động server:", err.message);
+        process.exit(1);
+    }
+}
+
+khoiDongServer();

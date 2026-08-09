@@ -7,6 +7,8 @@ export default function LichSuHeThong() {
     const [lichSu, setLichSu] = useState([]);
     const [dangTai, setDangTai] = useState(true);
     const [tuKhoa, setTuKhoa] = useState("");
+    const [danhSachCaLam, setDanhSachCaLam] = useState([]);
+    const [caLamLoc, setCaLamLoc] = useState("");
 
     // Bộ lọc Ngày / Tháng / Năm
     const [cheDoLoc, setCheDoLoc] = useState("TODAY"); // "TODAY" | "NGAY" | "THANG" | "NAM" | "TU_DEN"
@@ -20,11 +22,18 @@ export default function LichSuHeThong() {
     // Filter theo đối tượng
     const [loaiDoiTuongLoc, setLoaiDoiTuongLoc] = useState("ALL");
 
+    useEffect(() => {
+        api("/ca-lam").then(res => {
+            if (res.success) setDanhSachCaLam(res.data || []);
+        }).catch(err => console.error("Lỗi tải danh sách ca làm:", err));
+    }, []);
+
     const taiLichSu = useCallback(async () => {
         setDangTai(true);
         try {
             let url = `/admin/lich-su?`;
             if (loaiDoiTuongLoc !== "ALL") url += `&loai_doi_tuong=${loaiDoiTuongLoc}`;
+            if (caLamLoc) url += `&ca_lam_id=${caLamLoc}`;
             
             if (cheDoLoc === "TODAY") {
                 url += `&ngay=${todayStr}`;
@@ -52,7 +61,7 @@ export default function LichSuHeThong() {
         } finally {
             setDangTai(false);
         }
-    }, [loaiDoiTuongLoc, cheDoLoc, ngayLoc, thangLoc, namLoc, tuNgay, denNgay, tuKhoa, todayStr]);
+    }, [loaiDoiTuongLoc, caLamLoc, cheDoLoc, ngayLoc, thangLoc, namLoc, tuNgay, denNgay, tuKhoa, todayStr]);
 
     useEffect(() => {
         taiLichSu();
@@ -122,6 +131,20 @@ export default function LichSuHeThong() {
                             <option value="THANG">Theo Tháng & Năm</option>
                             <option value="NAM">Theo Năm</option>
                             <option value="TU_DEN">Từ ngày ... đến ngày ...</option>
+                        </select>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <label style={{ fontSize: "13px", fontWeight: "bold" }}>⏰ Ca làm:</label>
+                        <select
+                            value={caLamLoc}
+                            onChange={(e) => setCaLamLoc(e.target.value)}
+                            style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "var(--radius)", background: "#fff" }}
+                        >
+                            <option value="">-- Tất cả các ca --</option>
+                            {danhSachCaLam.map((cl) => (
+                                <option key={cl.id} value={cl.id}>{cl.ten_ca}</option>
+                            ))}
                         </select>
                     </div>
 

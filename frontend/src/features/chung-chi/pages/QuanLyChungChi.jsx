@@ -14,6 +14,8 @@ export default function QuanLyChungChi() {
     const [danhSachCCMV, setDanhSachCCMV] = useState([]);
     // States danh sách nhân viên (để chọn khi gán)
     const [danhSachNhanVien, setDanhSachNhanVien] = useState([]);
+    // States danh sách ca làm
+    const [danhSachCaLam, setDanhSachCaLam] = useState([]);
 
     const [dangTai, setDangTai] = useState(false);
     const [loi, setLoi] = useState("");
@@ -22,6 +24,7 @@ export default function QuanLyChungChi() {
     // Bộ lọc tab chứng chỉ nhân viên
     const [tuKhoa, setTuKhoa] = useState("");
     const [locChungChi, setLocChungChi] = useState("");
+    const [locCaLam, setLocCaLam] = useState("");
     const [locTrangThai, setLocTrangThai] = useState("");
 
     // Modal Danh mục Chứng chỉ
@@ -33,6 +36,7 @@ export default function QuanLyChungChi() {
     const [hienModalGan, setHienModalGan] = useState(false);
     const [modalGanCheDo, setModalGanCheDo] = useState("THEM"); // "THEM" | "SUA"
     const [tuKhoaTimNvGan, setTuKhoaTimNvGan] = useState("");
+    const [locCaLamNvGan, setLocCaLamNvGan] = useState("");
     const [formGan, setFormGan] = useState({
         id: null,
         nhan_vien_ids: [],
@@ -43,6 +47,18 @@ export default function QuanLyChungChi() {
         ngay_het_han: "",
         trang_thai: "HIEU_LUC"
     });
+
+    // Load danh mục ca làm
+    const taiDanhSachCaLam = useCallback(async () => {
+        try {
+            const res = await api("/ca-lam");
+            if (res.success) {
+                setDanhSachCaLam(res.data || []);
+            }
+        } catch (err) {
+            console.error("Lỗi khi tải danh sách ca làm:", err);
+        }
+    }, []);
 
     // Load danh mục chứng chỉ
     const taidanhSachChungChi = useCallback(async () => {
@@ -62,6 +78,7 @@ export default function QuanLyChungChi() {
             let url = `/chung-chi/nhan-vien?`;
             if (tuKhoa) url += `&q=${encodeURIComponent(tuKhoa)}`;
             if (locChungChi) url += `&chung_chi_id=${locChungChi}`;
+            if (locCaLam) url += `&ca_lam_id=${locCaLam}`;
             if (locTrangThai) url += `&trang_thai=${locTrangThai}`;
 
             const res = await api(url);
@@ -71,7 +88,7 @@ export default function QuanLyChungChi() {
         } catch (err) {
             setLoi(err.message || "Lỗi khi tải dữ liệu chứng chỉ nhân viên");
         }
-    }, [tuKhoa, locChungChi, locTrangThai]);
+    }, [tuKhoa, locChungChi, locCaLam, locTrangThai]);
 
     // Load danh sách nhân viên (để gán)
     const taiDanhSachNhanVien = useCallback(async () => {
@@ -88,9 +105,9 @@ export default function QuanLyChungChi() {
     const taidanhSach = useCallback(async () => {
         setDangTai(true);
         setLoi("");
-        await Promise.all([taidanhSachChungChi(), taiDanhSachCCMV(), taiDanhSachNhanVien()]);
+        await Promise.all([taidanhSachChungChi(), taiDanhSachCCMV(), taiDanhSachNhanVien(), taiDanhSachCaLam()]);
         setDangTai(false);
-    }, [taidanhSachChungChi, taiDanhSachCCMV, taiDanhSachNhanVien]);
+    }, [taidanhSachChungChi, taiDanhSachCCMV, taiDanhSachNhanVien, taiDanhSachCaLam]);
 
     useEffect(() => {
         taidanhSach();
@@ -467,6 +484,23 @@ export default function QuanLyChungChi() {
                             ))}
                         </select>
                         <select
+                            value={locCaLam}
+                            onChange={(e) => setLocCaLam(e.target.value)}
+                            style={{
+                                padding: "8px 12px",
+                                border: "1px solid #cbd5e1",
+                                borderRadius: "var(--radius)",
+                                background: "#fff"
+                            }}
+                        >
+                            <option value="">-- Tất cả ca làm --</option>
+                            {danhSachCaLam.map((cl) => (
+                                <option key={cl.id} value={cl.id}>
+                                    ⏰ {cl.ten_ca}
+                                </option>
+                            ))}
+                        </select>
+                        <select
                             value={locTrangThai}
                             onChange={(e) => setLocTrangThai(e.target.value)}
                             style={{
@@ -724,6 +758,10 @@ export default function QuanLyChungChi() {
                                         <div className="nhom-o-nhap">
                                             {(() => {
                                                 const dsNvFiltered = danhSachNhanVien.filter((nv) => {
+                                                    // Lọc theo ca làm trong form gán
+                                                    if (locCaLamNvGan && Number(nv.ca_lam_id) !== Number(locCaLamNvGan)) {
+                                                        return false;
+                                                    }
                                                     if (!tuKhoaTimNvGan.trim()) return true;
                                                     const kw = tuKhoaTimNvGan.toLowerCase();
                                                     return (
@@ -752,21 +790,42 @@ export default function QuanLyChungChi() {
                                                                 {allChecked ? "❌ Bỏ chọn tất cả" : "✅ Chọn tất cả (kết quả lọc)"}
                                                             </button>
                                                         </div>
-
-                                                        <input
-                                                            type="text"
-                                                            placeholder="🔍 Tìm nhân viên theo tên, mã NV, dây chuyền, ca..."
-                                                            value={tuKhoaTimNvGan}
-                                                            onChange={(e) => setTuKhoaTimNvGan(e.target.value)}
-                                                            style={{
-                                                                width: "100%",
-                                                                padding: "7px 10px",
-                                                                marginBottom: "8px",
-                                                                fontSize: "13px",
-                                                                border: "1px solid #cbd5e1",
-                                                                borderRadius: "var(--radius)"
-                                                            }}
-                                                        />
+                                                        
+                                                        {/* Bộ lọc nhân viên theo ca & tìm kiếm trong modal */}
+                                                        <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                                            <select
+                                                                value={locCaLamNvGan}
+                                                                onChange={(e) => setLocCaLamNvGan(e.target.value)}
+                                                                style={{
+                                                                    padding: "7px 10px",
+                                                                    fontSize: "13px",
+                                                                    border: "1px solid #cbd5e1",
+                                                                    borderRadius: "var(--radius)",
+                                                                    background: "#fff",
+                                                                    minWidth: "140px"
+                                                                }}
+                                                            >
+                                                                <option value="">-- Tất cả ca --</option>
+                                                                {danhSachCaLam.map((cl) => (
+                                                                    <option key={cl.id} value={cl.id}>
+                                                                        ⏰ {cl.ten_ca}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="🔍 Tìm nhân viên theo tên, mã NV, dây chuyền..."
+                                                                value={tuKhoaTimNvGan}
+                                                                onChange={(e) => setTuKhoaTimNvGan(e.target.value)}
+                                                                style={{
+                                                                    flex: 1,
+                                                                    padding: "7px 10px",
+                                                                    fontSize: "13px",
+                                                                    border: "1px solid #cbd5e1",
+                                                                    borderRadius: "var(--radius)"
+                                                                }}
+                                                            />
+                                                        </div>
 
                                                         <div
                                                             style={{
@@ -783,31 +842,42 @@ export default function QuanLyChungChi() {
                                                                     Không tìm thấy nhân viên nào phù hợp
                                                                 </div>
                                                             ) : (
-                                                                dsNvFiltered.map((nv) => (
-                                                                    <label
-                                                                        key={nv.id}
-                                                                        style={{
-                                                                            display: "flex",
-                                                                            alignItems: "center",
-                                                                            gap: "8px",
-                                                                            padding: "6px 0",
-                                                                            borderBottom: "1px solid #f1f5f9",
-                                                                            cursor: "pointer",
-                                                                            fontSize: "13px"
-                                                                        }}
-                                                                    >
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={formGan.nhan_vien_ids.includes(nv.id)}
-                                                                            onChange={() => xuLyChonNvGan(nv.id)}
-                                                                        />
-                                                                        <span>
-                                                                            <strong>{nv.ho_ten}</strong> ({nv.ma_nhan_vien || "NV"})
-                                                                            {nv.ten_day_chuyen ? <span style={{ color: "var(--steel)", marginLeft: "6px" }}>- Line: {nv.ten_day_chuyen}</span> : ""}
-                                                                            {nv.ten_ca_lam ? <span style={{ color: "#d97706", marginLeft: "6px", fontWeight: "600" }}>- {nv.ten_ca_lam}</span> : ""}
-                                                                        </span>
-                                                                    </label>
-                                                                ))
+                                                               dsNvFiltered.map((nv) => (
+    <label
+        key={nv.id}
+        title={`${nv.ho_ten} (${nv.ma_nhan_vien || "NV"})`}
+        style={{
+            display: "grid",
+            gridTemplateColumns: "20px minmax(120px, 1.4fr) 80px minmax(90px, 1fr) minmax(70px, auto)",
+            alignItems: "center",
+            gap: "8px",
+            padding: "7px 4px",
+            minHeight: "34px",
+            borderBottom: "1px solid #f1f5f9",
+            cursor: "pointer",
+            fontSize: "13px"
+        }}
+    >
+        <input
+            type="checkbox"
+            checked={formGan.nhan_vien_ids.includes(nv.id)}
+            onChange={() => xuLyChonNvGan(nv.id)}
+            style={{ margin: 0 }}
+        />
+        <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {nv.ho_ten}
+        </strong>
+        <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "12px" }}>
+            {nv.ma_nhan_vien || "NV"}
+        </span>
+        <span style={{ color: "var(--steel)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {nv.ten_day_chuyen || "-"}
+        </span>
+        <span style={{ color: "#d97706", fontWeight: 600, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {nv.ten_ca_lam || "-"}
+        </span>
+    </label>
+))
                                                             )}
                                                         </div>
                                                     </>

@@ -33,7 +33,73 @@ export async function initDatabaseTables() {
                 ngay_ket_thuc DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+            CREATE TABLE IF NOT EXISTS nhat_ky_leader_day_chuyen (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                day_chuyen_id INT NOT NULL,
+                leader_id INT NULL,
+                leader_cu_id INT NULL,
+                ngay_bat_dau DATE NOT NULL,
+                ngay_ket_thuc DATE NULL,
+                hanh_dong ENUM('PHAN_CONG','THAY_DOI','GO_PHAN_CONG') DEFAULT 'PHAN_CONG',
+                ghi_chu TEXT NULL,
+                nguoi_thuc_hien VARCHAR(100) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX(day_chuyen_id),
+                INDEX(leader_id),
+                INDEX(ngay_bat_dau),
+                INDEX(ngay_ket_thuc)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         `);
+
+        // Lịch làm việc theo khoảng thời gian của từng nhân sự/phân công.
+        // Dùng IF NOT EXISTS để các database hiện hữu được nâng cấp an toàn.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS lich_lam_viec_nhan_vien (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nhan_vien_id INT NOT NULL,
+                day_chuyen_id INT NULL,
+                cong_doan_id INT NULL,
+                ca_lam_id INT NULL,
+                thoi_gian_bat_dau DATETIME NOT NULL,
+                thoi_gian_ket_thuc DATETIME NOT NULL,
+                trang_thai ENUM('DANG_LAM','NGHI_PHEP','NGHI','VANG','TANG_CA','DIEU_CHUYEN','CHO_PHAN_CONG') DEFAULT 'DANG_LAM',
+                ghi_chu TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX(nhan_vien_id),
+                INDEX(day_chuyen_id),
+                INDEX(thoi_gian_bat_dau),
+                INDEX(thoi_gian_ket_thuc)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+
+        // Khoảng ngày của một bản ghi phân công (không cần tạo một bản ghi cho từng ngày).
+        const checkAssignmentDateColumn = async (column) => {
+            const [rows] = await pool.query(
+                `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'phan_cong_nhan_su' AND COLUMN_NAME = ?`,
+                [column]
+            );
+            return rows.length > 0;
+        };
+        if (!(await checkAssignmentDateColumn('ngay_bat_dau'))) {
+            await pool.query("ALTER TABLE phan_cong_nhan_su ADD COLUMN ngay_bat_dau DATE NULL");
+        }
+        if (!(await checkAssignmentDateColumn('ngay_ket_thuc'))) {
+            await pool.query("ALTER TABLE phan_cong_nhan_su ADD COLUMN ngay_ket_thuc DATE NULL");
+        }
+        const assignmentDateTimeColumns = [
+            ["thoi_gian_bat_dau", "DATETIME NULL"],
+            ["thoi_gian_ket_thuc", "DATETIME NULL"]
+        ];
+        for (const [column, definition] of assignmentDateTimeColumns) {
+            if (!(await checkAssignmentDateColumn(column))) {
+                await pool.query(`ALTER TABLE phan_cong_nhan_su ADD COLUMN ${column} ${definition}`);
+            }
+        }
+        await pool.query("UPDATE phan_cong_nhan_su SET ngay_bat_dau = ngay, ngay_ket_thuc = ngay WHERE ngay_bat_dau IS NULL OR ngay_ket_thuc IS NULL");
+        await pool.query("UPDATE phan_cong_nhan_su SET thoi_gian_bat_dau = CONCAT(ngay_bat_dau, ' 00:00:00'), thoi_gian_ket_thuc = CONCAT(ngay_ket_thuc, ' 23:59:59') WHERE thoi_gian_bat_dau IS NULL OR thoi_gian_ket_thuc IS NULL");
+        await pool.query("UPDATE phan_cong_nhan_su SET trang_thai = 'DANG_LAM' WHERE trang_thai = 'NGHI'");
 
         // Helper kiểm tra cột đã có hay chưa
         const checkColumn = async (table, column) => {
@@ -77,7 +143,19 @@ export async function initDatabaseTables() {
             await pool.query(`ALTER TABLE nhan_vien ADD COLUMN ngay_sinh DATE NULL`);
         }
 
-        // 4. Kiểm tra & thêm cột loai_thay_doi vào lich_su_dieu_dong
+        // 4. Kiểm tra & bổ sung các trường nhật ký phục vụ lịch sử theo thời gian.
+        // Database cũ có thể đã tồn tại nhat_ky_phan_cong nhưng thiếu các cột nâng cấp.
+        const historyColumns = [
+            ["thoi_gian_bat_dau", "DATETIME NULL"],
+            ["thoi_gian_ket_thuc", "DATETIME NULL"],
+            ["ly_do", "TEXT NULL"],
+            ["nguoi_thay_the_id", "INT NULL"]
+        ];
+        for (const [column, definition] of historyColumns) {
+            if (!(await checkColumn('nhat_ky_phan_cong', column))) {
+                await pool.query(`ALTER TABLE nhat_ky_phan_cong ADD COLUMN ${column} ${definition}`);
+            }
+        }
         if (!(await checkColumn('lich_su_dieu_dong', 'loai_thay_doi'))) {
             await pool.query(`ALTER TABLE lich_su_dieu_dong ADD COLUMN loai_thay_doi VARCHAR(50) DEFAULT 'DAY_CHUYEN'`);
         }

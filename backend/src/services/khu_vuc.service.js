@@ -143,10 +143,19 @@ class KhuVucService {
         return rows;
     }
 
-    static async layBanDoKhuVuc(khuVucId) {
+    static async layBanDoKhuVuc(khuVucId, { ca_lam_id, nguoiDung } = {}) {
         const khuVuc = await KhuVucService.timKhuVucTheoId(khuVucId);
         if (!khuVuc) {
             throw new ApiError(404, "Không tìm thấy khu vực");
+        }
+
+        // Tự động xác định ca làm của Leader nếu là LEADER_LINE / LEADER_KHU_VUC
+        let effectiveCaLamId = ca_lam_id;
+        if (nguoiDung && !["ADMIN", "MANAGER"].includes(nguoiDung.role)) {
+            const [nvMe] = await pool.query("SELECT ca_lam_id FROM nhan_vien WHERE tai_khoan_id = ? LIMIT 1", [nguoiDung.id]);
+            if (nvMe.length > 0 && nvMe[0].ca_lam_id) {
+                effectiveCaLamId = nvMe[0].ca_lam_id;
+            }
         }
 
         const [dayChuyenRows] = await pool.query(
@@ -154,26 +163,34 @@ class KhuVucService {
             [khuVucId]
         );
 
+        let pcWhere = "WHERE pc.cong_doan_id = cd.id AND pc.ngay = CURDATE()";
+        const pcParams = [];
+        if (effectiveCaLamId) {
+            pcWhere += " AND pc.ca_lam_id = ?";
+            pcParams.push(effectiveCaLamId);
+        }
+
         const [congDoanRows] = await pool.query(
             `SELECT cd.id AS cong_doan_id, cd.ten_cong_doan, cd.vi_tri_x, cd.vi_tri_y, cd.xoay,
                     yc.day_chuyen_id, yc.so_luong_can, yc.so_luong_min, yc.so_luong_max,
                     dc.ten_day_chuyen,
-                    (SELECT COUNT(*) FROM phan_cong_nhan_su WHERE cong_doan_id = cd.id AND ngay = CURDATE()) AS so_luong_da_gan,
+                    (SELECT COUNT(*) FROM phan_cong_nhan_su pc ${pcWhere}) AS so_luong_da_gan,
                     (SELECT GROUP_CONCAT(nv.ho_ten ORDER BY nv.ho_ten ASC SEPARATOR ', ')
                      FROM phan_cong_nhan_su pc
                      JOIN nhan_vien nv ON pc.nhan_vien_id = nv.id
-                     WHERE pc.cong_doan_id = cd.id AND pc.ngay = CURDATE()) AS danh_sach_nv
+                     ${pcWhere}) AS danh_sach_nv
              FROM cong_doan cd
              JOIN yeu_cau_nhan_su yc ON cd.id = yc.cong_doan_id
              JOIN day_chuyen dc ON yc.day_chuyen_id = dc.id
              WHERE dc.khu_vuc_id = ?`,
-            [khuVucId]
+            [...pcParams, ...pcParams, khuVucId]
         );
 
         return {
             khu_vuc: khuVuc,
             day_chuyen: dayChuyenRows,
-            cong_doan: congDoanRows
+            cong_doan: congDoanRows,
+            effective_ca_lam_id: effectiveCaLamId
         };
     }
 

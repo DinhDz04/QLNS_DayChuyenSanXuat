@@ -36,8 +36,10 @@ export function xoaKhuVuc(id) {
     });
 }
 
-export function layBanDoKhuVuc(id) {
-    return goiApi(`/khu-vuc/${id}/ban-do`);
+export function layBanDoKhuVuc(id, caLamId) {
+    let url = `/khu-vuc/${id}/ban-do`;
+    if (caLamId) url += `?ca_lam_id=${caLamId}`;
+    return goiApi(url);
 }
 
 export function luuBanDoKhuVuc(id, payload) {

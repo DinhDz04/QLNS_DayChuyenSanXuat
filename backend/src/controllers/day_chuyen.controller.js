@@ -37,8 +37,8 @@ class DayChuyenController {
 
     static async taoDayChuyen(req, res, next) {
         try {
-            const { ten_day_chuyen, khu_vuc_id, leader_id, trang_thai, bo_phan } = req.body;
-            const data = await DayChuyenService.taoDayChuyen({ ten_day_chuyen, khu_vuc_id, leader_id, trang_thai, bo_phan });
+            const { ten_day_chuyen, khu_vuc_id, leader_id, leader_ngay_bat_dau, leader_ngay_ket_thuc, trang_thai, bo_phan } = req.body;
+            const data = await DayChuyenService.taoDayChuyen({ ten_day_chuyen, khu_vuc_id, leader_id, leader_ngay_bat_dau, leader_ngay_ket_thuc, trang_thai, bo_phan });
             return res.status(201).json({ success: true, message: "Tạo dây chuyền thành công", data });
         } catch (err) {
             next(err);
@@ -47,8 +47,8 @@ class DayChuyenController {
 
     static async capNhatDayChuyen(req, res, next) {
         try {
-            const { ten_day_chuyen, khu_vuc_id, leader_id, trang_thai, bo_phan } = req.body;
-            const data = await DayChuyenService.capNhatDayChuyen(req.params.id, { ten_day_chuyen, khu_vuc_id, leader_id, trang_thai, bo_phan }, req.nguoiDung);
+            const { ten_day_chuyen, khu_vuc_id, leader_id, leader_ngay_bat_dau, leader_ngay_ket_thuc, trang_thai, bo_phan } = req.body;
+            const data = await DayChuyenService.capNhatDayChuyen(req.params.id, { ten_day_chuyen, khu_vuc_id, leader_id, leader_ngay_bat_dau, leader_ngay_ket_thuc, trang_thai, bo_phan }, req.nguoiDung);
             return res.json({ success: true, message: "Cập nhật dây chuyền thành công", data });
         } catch (err) {
             next(err);
@@ -75,15 +75,37 @@ class DayChuyenController {
         }
     }
 
+    static async layLichSuPhanCong(req, res, next) {
+        try {
+            const { day_chuyen_id, cong_doan_id, nhan_vien_id, tu_ngay, den_ngay, hanh_dong } = req.query;
+            const data = await DayChuyenService.layLichSuPhanCong({
+                day_chuyen_id,
+                cong_doan_id,
+                nhan_vien_id,
+                tu_ngay,
+                den_ngay,
+                hanh_dong,
+                nguoiDung: req.nguoiDung
+            });
+            return res.json({ success: true, message: "Lấy lịch sử phân công thành công", data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     static async layUngVienChoBoPhan(req, res, next) {
         try {
-            const { cong_doan_id, ngay, ca_lam_id } = req.query;
+            const { cong_doan_id, ngay, ngay_bat_dau, ngay_ket_thuc, start_datetime, end_datetime, ca_lam_id } = req.query;
             if (!cong_doan_id) {
                 throw new ApiError(400, "Thiếu cong_doan_id");
             }
             const data = await DayChuyenService.layUngVienChoBoPhan({
                 congDoanId: cong_doan_id,
                 ngay,
+                ngayBatDau: ngay_bat_dau,
+                ngayKetThuc: ngay_ket_thuc,
+                startDatetime: start_datetime,
+                endDatetime: end_datetime,
                 caLamId: ca_lam_id,
                 nguoiDung: req.nguoiDung
             });
@@ -95,13 +117,17 @@ class DayChuyenController {
 
     static async phanCongNhanSu(req, res, next) {
         try {
-            const { nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay } = req.body;
+            const { nhan_vien_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, ngay_bat_dau, ngay_ket_thuc, start_datetime, end_datetime } = req.body;
             const data = await DayChuyenService.phanCongNhanSu({ 
                 nhan_vien_id, 
                 day_chuyen_id, 
-                cong_doan_id, 
-                ca_lam_id, 
-                ngay, 
+                cong_doan_id,
+                ca_lam_id,
+                ngay,
+                ngay_bat_dau,
+                ngay_ket_thuc,
+                start_datetime,
+                end_datetime,
                 nguoiDung: req.nguoiDung 
             });
             return res.json({ success: true, message: "Phân công nhân viên vào dây chuyền thành công", data });
@@ -112,16 +138,20 @@ class DayChuyenController {
 
     static async thayDoiNhanSu(req, res, next) {
         try {
-            const { nhan_vien_cu_id, nhan_vien_moi_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay } = req.body;
+            const { nhan_vien_cu_id, nhan_vien_moi_id, day_chuyen_id, cong_doan_id, ca_lam_id, ngay, ngay_bat_dau, ngay_ket_thuc, start_datetime, end_datetime } = req.body;
             const data = await DayChuyenService.thayDoiNhanSu({
                 nhan_vien_cu_id,
                 nhan_vien_moi_id,
                 day_chuyen_id,
                 cong_doan_id,
-                ca_lam_id,
-                ngay,
-                nguoiDung: req.nguoiDung
-            });
+            ca_lam_id,
+            ngay,
+            ngay_bat_dau,
+            ngay_ket_thuc,
+            start_datetime,
+            end_datetime,
+            nguoiDung: req.nguoiDung
+        });
             return res.json({ success: true, message: data.message, data });
         } catch (err) {
             next(err);
@@ -130,9 +160,19 @@ class DayChuyenController {
 
     static async goPhanCongNhanSu(req, res, next) {
         try {
-            const { nhan_vien_id, day_chuyen_id, cong_doan_id, ngay } = req.body;
-            const data = await DayChuyenService.goPhanCongNhanSu({ nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, nguoiDung: req.nguoiDung });
+            const { nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, start_datetime, end_datetime } = req.body;
+            const data = await DayChuyenService.goPhanCongNhanSu({ nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, start_datetime, end_datetime, nguoiDung: req.nguoiDung });
             return res.json({ success: true, message: "Đã gỡ nhân viên khỏi bộ phận dây chuyền", data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    static async dieuChinhPhanCong(req, res, next) {
+        try {
+            const { nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, start_datetime, end_datetime } = req.body;
+            const data = await DayChuyenService.dieuChinhPhanCong({ nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, start_datetime, end_datetime, nguoiDung: req.nguoiDung });
+            return res.json({ success: true, message: data.message, data: null });
         } catch (err) {
             next(err);
         }
@@ -140,8 +180,25 @@ class DayChuyenController {
 
     static async capNhatTrangThaiPhanCong(req, res, next) {
         try {
-            const { nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, trang_thai } = req.body;
-            const data = await DayChuyenService.capNhatTrangThaiPhanCong({ nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, trang_thai, nguoiDung: req.nguoiDung });
+            const { nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, start_datetime, end_datetime, trang_thai } = req.body;
+            const data = await DayChuyenService.capNhatTrangThaiPhanCong({ nhan_vien_id, day_chuyen_id, cong_doan_id, ngay, start_datetime, end_datetime, trang_thai, nguoiDung: req.nguoiDung });
+            return res.json({ success: true, message: data.message, data: null });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    static async nghiPhepPhanCong(req, res, next) {
+        try {
+            const { nhan_vien_id, day_chuyen_id, cong_doan_id, start_datetime, end_datetime } = req.body;
+            const data = await DayChuyenService.nghiPhepPhanCong({
+                nhan_vien_id,
+                day_chuyen_id,
+                cong_doan_id,
+                start_datetime,
+                end_datetime,
+                nguoiDung: req.nguoiDung
+            });
             return res.json({ success: true, message: data.message, data: null });
         } catch (err) {
             next(err);
@@ -151,8 +208,8 @@ class DayChuyenController {
     static async tuDongGanNhanSu(req, res, next) {
         try {
             const { id } = req.params;
-            const { ngay, ca_lam_id } = req.body;
-            const data = await DayChuyenService.tuDongGanNhanSu({ day_chuyen_id: id, ngay, ca_lam_id, nguoiDung: req.nguoiDung });
+            const { ngay, ngay_bat_dau, ngay_ket_thuc, ca_lam_id } = req.body;
+            const data = await DayChuyenService.tuDongGanNhanSu({ day_chuyen_id: id, ngay, ngay_bat_dau, ngay_ket_thuc, ca_lam_id, nguoiDung: req.nguoiDung });
             return res.json({
                 success: true,
                 message: data.message,

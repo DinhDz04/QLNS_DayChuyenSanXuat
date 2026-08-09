@@ -4,7 +4,7 @@ import pool from "../config/db.js";
  * Model quản lý dữ liệu nhân viên
  */
 class NhanVienModel {
-    static async layDanhSachNhanVien({ q, day_chuyen_id, ca_lam_id, trang_thai } = {}) {
+    static async layDanhSachNhanVien({ q, day_chuyen_id, ca_lam_id, trang_thai, nguoiDung } = {}) {
         let sql = `
             SELECT nv.*, dc.ten_day_chuyen, cl.ten_ca AS ten_ca_lam, tk.ten_dang_nhap, tk.email
             FROM nhan_vien nv
@@ -14,6 +14,15 @@ class NhanVienModel {
             WHERE 1=1
         `;
         const params = [];
+
+        // Ràng buộc phân quyền Leader: nếu là Leader và không chỉ định ca_lam_id, tự động lấy ca làm của Leader
+        let effectiveCaLamId = ca_lam_id;
+        if (!effectiveCaLamId && nguoiDung && !["ADMIN", "MANAGER"].includes(nguoiDung.role)) {
+            const [nvMe] = await pool.query("SELECT ca_lam_id FROM nhan_vien WHERE tai_khoan_id = ? LIMIT 1", [nguoiDung.id]);
+            if (nvMe.length > 0 && nvMe[0].ca_lam_id) {
+                effectiveCaLamId = nvMe[0].ca_lam_id;
+            }
+        }
 
         if (q) {
             sql += " AND (nv.ho_ten LIKE ? OR nv.ma_nhan_vien LIKE ? OR nv.so_dien_thoai LIKE ?)";
@@ -26,9 +35,9 @@ class NhanVienModel {
             params.push(day_chuyen_id);
         }
 
-        if (ca_lam_id) {
+        if (effectiveCaLamId) {
             sql += " AND nv.ca_lam_id = ?";
-            params.push(ca_lam_id);
+            params.push(effectiveCaLamId);
         }
 
         if (trang_thai) {

@@ -1,9 +1,10 @@
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext.jsx";
 import { useCrud } from "../../../hooks/useCrud.js";
-import { layDanhSachDayChuyen, taoDayChuyen, capNhatDayChuyen, xoaDayChuyen } from "../services/dayChuyen.service.js";
+import { layDanhSachDayChuyen, taoDayChuyen, capNhatDayChuyen, xoaDayChuyen, layLichSuPhanCong } from "../services/dayChuyen.service.js";
 import ModalDayChuyen from "../components/ModalDayChuyen.jsx";
-import LichSuVaThongKeEmbedded from "../../../components/common/LichSuVaThongKeEmbedded.jsx";
+
 
 export default function QuanLyDayChuyen() {
     const { nguoiDung } = useAuth();
@@ -96,6 +97,12 @@ export default function QuanLyDayChuyen() {
                                     </p>
                                     <p style={{ margin: "4px 0", fontSize: "12px", color: "var(--text-muted)" }}>
                                         Leader: <strong>{dc.ten_leader || "Chưa gán"}</strong>
+                                        {dc.ten_leader && dc.leader_ngay_bat_dau && (
+                                            <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontStyle: "italic" }}>
+                                                📅 {dc.leader_ngay_bat_dau.slice(0, 10).split('-').reverse().join('/')}
+                                                {dc.leader_ngay_ket_thuc ? ` - ${dc.leader_ngay_ket_thuc.slice(0, 10).split('-').reverse().join('/')}` : " - Hiện tại"}
+                                            </span>
+                                        )}
                                     </p>
 
                                     <div style={{ marginTop: "12px" }}>
@@ -155,7 +162,15 @@ export default function QuanLyDayChuyen() {
                                             <td>{dc.ten_khu_vuc}</td>
                                             <td>
                                                 {dc.ten_leader ? (
-                                                    <span style={{ fontWeight: 600, color: "var(--amber-dark)" }}>{dc.ten_leader}</span>
+                                                    <div>
+                                                        <span style={{ fontWeight: 600, color: "var(--amber-dark)" }}>{dc.ten_leader}</span>
+                                                        {dc.leader_ngay_bat_dau && (
+                                                            <div style={{ fontSize: "11px", color: "#64748b" }}>
+                                                                📅 {dc.leader_ngay_bat_dau.slice(0, 10).split('-').reverse().join('/')}
+                                                                {dc.leader_ngay_ket_thuc ? ` - ${dc.leader_ngay_ket_thuc.slice(0, 10).split('-').reverse().join('/')}` : " - Hiện tại"}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <span className="text-unspecified">Chưa gán leader</span>
                                                 )}
@@ -226,12 +241,65 @@ export default function QuanLyDayChuyen() {
                 onSave={xuLyLuu}
             />
 
-            {/* Embedded Audit History & Statistics for Dây chuyền */}
-            <LichSuVaThongKeEmbedded
-                loaiDoiTuong="DAY_CHUYEN"
-                tieuDe="Nhật ký & Lịch sử Dây chuyền sản xuất"
-                moTa="Lưu vết thời điểm tạo dây chuyền, điều chuyển leader, thay đổi trạng thái và nhật ký xóa dây chuyền"
-            />
+            {/* Embedded History & Statistics for Dây chuyền */}
+            <ThongKeLichSuDayChuyen danhSachDayChuyen={danhSach} />
         </div>
     );
+}
+
+function ThongKeLichSuDayChuyen({ danhSachDayChuyen }) {
+    const [selectedDayChuyenId, setSelectedDayChuyenId] = useState("");
+    const [tuNgay, setTuNgay] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
+    const [denNgay, setDenNgay] = useState(new Date().toISOString().split("T")[0]);
+    const [hanhDong, setHanhDong] = useState("");
+    const [lichSuList, setLichSuList] = useState([]);
+    const [dangTai, setDangTai] = useState(false);
+
+    useEffect(() => {
+        if (!selectedDayChuyenId && danhSachDayChuyen && danhSachDayChuyen.length > 0) {
+            setSelectedDayChuyenId(String(danhSachDayChuyen[0].id));
+        }
+    }, [danhSachDayChuyen]);
+
+    useEffect(() => {
+        if (!selectedDayChuyenId) return;
+        let active = true;
+        setDangTai(true);
+        layLichSuPhanCong({
+            dayChuyenId: selectedDayChuyenId,
+            tuNgay,
+            denNgay,
+            hanhDong: hanhDong || undefined
+        }).then((res) => {
+            if (active && res.success) {
+                setLichSuList(res.data || []);
+            }
+        }).catch((err) => {
+            console.error("Lỗi tải lịch sử phân công:", err);
+        }).finally(() => {
+            if (active) setDangTai(false);
+        });
+        return () => { active = false; };
+    }, [selectedDayChuyenId, tuNgay, denNgay, hanhDong]);
+
+    // Thống kê nhanh từ lịch sử
+    const tongSoLeader = lichSuList.filter(i => i.hanh_dong === "GAN_LEADER").length;
+    const tongSoPhanCong = lichSuList.filter(i => i.hanh_dong === "GAN").length;
+    const tongSoNghi = lichSuList.filter(i => ["NGHI", "NGHI_PHEP"].includes(i.hanh_dong)).length;
+    const tongSoThayThe = lichSuList.filter(i => i.hanh_dong === "THAY_THE").length;
+    const tongSoGo = lichSuList.filter(i => i.hanh_dong === "GO").length;
+
+    const mapHanhDongText = {
+        GAN: "Phân công mới",
+        GAN_LEADER: "Gán/Thay Leader",
+        NGHI: "Khai báo nghỉ",
+        NGHI_PHEP: "Nghỉ phép",
+        DI_LAM_LAI: "Đi làm lại",
+        GO: "Gỡ phân công",
+        THAY_THE: "Thay thế nhân sự",
+        DIEU_CHUYEN: "Điều chuyển",
+        DIEU_CHINH: "Điều chỉnh thời gian"
+    };
+
+    
 }

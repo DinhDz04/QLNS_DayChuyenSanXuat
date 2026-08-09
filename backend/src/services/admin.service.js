@@ -429,7 +429,7 @@ class AdminService {
     }
 
     static async layLichSuHeThong(queryObj = {}, nguoiDung = null) {
-        const { loai_doi_tuong, ngay, thang, nam, tu_ngay, den_ngay, q } = queryObj;
+        const { loai_doi_tuong, ngay, thang, nam, tu_ngay, den_ngay, q, ca_lam_id } = queryObj;
         
         let sql = `
             SELECT 
@@ -446,6 +446,25 @@ class AdminService {
             WHERE 1=1
         `;
         const params = [];
+
+        // Ràng buộc phân quyền Leader: Leader chỉ xem nhật ký ca của mình
+        let effectiveCaLamId = ca_lam_id;
+        if (nguoiDung && !["ADMIN", "MANAGER"].includes(nguoiDung.role)) {
+            const [nvMe] = await pool.query("SELECT ca_lam_id FROM nhan_vien WHERE tai_khoan_id = ? LIMIT 1", [nguoiDung.id]);
+            if (nvMe.length > 0 && nvMe[0].ca_lam_id) {
+                effectiveCaLamId = nvMe[0].ca_lam_id;
+            }
+        }
+
+        if (effectiveCaLamId) {
+            const [caRows] = await pool.query("SELECT ten_ca FROM ca_lam_viec WHERE id = ?", [effectiveCaLamId]);
+            if (caRows.length > 0) {
+                const tenCa = caRows[0].ten_ca;
+                sql += " AND (nk.chi_tiet LIKE ? OR nk.ten_doi_tuong LIKE ?)";
+                const likeCa = `%${tenCa}%`;
+                params.push(likeCa, likeCa);
+            }
+        }
 
         if (loai_doi_tuong && loai_doi_tuong !== "ALL") {
             sql += " AND nk.loai_doi_tuong = ?";
@@ -489,8 +508,7 @@ class AdminService {
 
         // Nếu bảng nhat_ky_he_thong chưa có dữ liệu cũ, truy vấn thêm từ các bảng nhat_ky_phan_cong & lich_su_dieu_dong
         if (rows.length < 5) {
-            const [legacyRows] = await pool.query(
-                `SELECT 
+            let legacySql = `SELECT 
                     'CONG_DOAN' AS loai_doi_tuong,
                     nk.hanh_dong AS hanh_dong,
                     nk.id AS doi_tuong_id,
@@ -504,8 +522,14 @@ class AdminService {
                  LEFT JOIN day_chuyen dc ON nk.day_chuyen_id = dc.id
                  LEFT JOIN cong_doan cd ON nk.cong_doan_id = cd.id
                  LEFT JOIN ca_lam_viec cl ON nk.ca_lam_id = cl.id
+                 WHERE 1=1`;
+            const legacyParams = [];
+            if (effectiveCaLamId) {
+                legacySql += " AND (nk.ca_lam_id = ? OR nv.ca_lam_id = ?)";
+                legacyParams.push(effectiveCaLamId, effectiveCaLamId);
+            }
 
-                 UNION ALL
+            legacySql += ` UNION ALL
 
                  SELECT 
                     'NHAN_VIEN' AS loai_doi_tuong,
@@ -518,9 +542,15 @@ class AdminService {
                     ls.thoi_gian AS thoi_gian
                  FROM lich_su_dieu_dong ls
                  JOIN nhan_vien nv ON ls.nhan_vien_id = nv.id
+                 WHERE 1=1`;
+            if (effectiveCaLamId) {
+                legacySql += " AND nv.ca_lam_id = ?";
+                legacyParams.push(effectiveCaLamId);
+            }
 
-                 ORDER BY thoi_gian DESC LIMIT 100`
-            );
+            legacySql += " ORDER BY thoi_gian DESC LIMIT 100";
+
+            const [legacyRows] = await pool.query(legacySql, legacyParams);
             return [...rows, ...legacyRows];
         }
 

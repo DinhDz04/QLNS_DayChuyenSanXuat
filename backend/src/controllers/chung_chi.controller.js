@@ -59,12 +59,14 @@ class ChungChiController {
     // ================= CHỨNG CHỈ NHÂN VIÊN =================
     static async layDanhSachChungChiNhanVien(req, res, next) {
         try {
-            const { nhan_vien_id, chung_chi_id, trang_thai, q } = req.query;
+            const { nhan_vien_id, chung_chi_id, ca_lam_id, trang_thai, q } = req.query;
             const data = await ChungChiService.layDanhSachChungChiNhanVien({
                 nhan_vien_id,
                 chung_chi_id,
+                ca_lam_id,
                 trang_thai,
-                q
+                q,
+                nguoiDung: req.nguoiDung
             });
             return res.json({ success: true, message: "Lấy danh sách chứng chỉ nhân viên thành công", data });
         } catch (err) {
@@ -82,7 +84,8 @@ class ChungChiController {
                 cap_do,
                 ngay_cap,
                 ngay_het_han,
-                trang_thai
+                trang_thai,
+                nguoiDung: req.nguoiDung
             });
             return res.json({ success: true, message: `Gán chứng chỉ thành công cho ${data.successCount || 1} nhân viên`, data });
         } catch (err) {

@@ -1136,6 +1136,54 @@ class DayChuyenService {
             danhSachGan: danhSachGanThanhCong
         };
     }
+
+    static async layLichSuPhanCong({ day_chuyen_id, cong_doan_id, nhan_vien_id, tu_ngay, den_ngay, hanh_dong, nguoiDung }) {
+        let query = `
+            SELECT nk.id, nk.nhan_vien_id, nk.day_chuyen_id, nk.cong_doan_id, nk.ca_lam_id,
+                   nk.ngay AS event_datetime, nk.hanh_dong, nk.thoi_gian_bat_dau, nk.thoi_gian_ket_thuc, nk.ly_do,
+                   nv.ho_ten, nv.ma_nhan_vien,
+                   cd.ten_cong_doan,
+                   dc.ten_day_chuyen,
+                   cl.ten_ca
+            FROM nhat_ky_phan_cong nk
+            JOIN nhan_vien nv ON nk.nhan_vien_id = nv.id
+            LEFT JOIN cong_doan cd ON nk.cong_doan_id = cd.id
+            LEFT JOIN day_chuyen dc ON nk.day_chuyen_id = dc.id
+            LEFT JOIN ca_lam_viec cl ON nk.ca_lam_id = cl.id
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (day_chuyen_id) {
+            query += " AND nk.day_chuyen_id = ?";
+            params.push(day_chuyen_id);
+        }
+        if (cong_doan_id) {
+            query += " AND nk.cong_doan_id = ?";
+            params.push(cong_doan_id);
+        }
+        if (nhan_vien_id) {
+            query += " AND nk.nhan_vien_id = ?";
+            params.push(nhan_vien_id);
+        }
+        if (tu_ngay) {
+            query += " AND nk.ngay >= ?";
+            params.push(tu_ngay);
+        }
+        if (den_ngay) {
+            query += " AND nk.ngay <= ?";
+            params.push(den_ngay);
+        }
+        if (hanh_dong) {
+            query += " AND nk.hanh_dong = ?";
+            params.push(hanh_dong);
+        }
+
+        query += " ORDER BY nk.id DESC";
+
+        const [rows] = await pool.query(query, params);
+        return rows;
+    }
 }
 
 export default DayChuyenService;
